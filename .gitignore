@@ -1,0 +1,19 @@
+build/bin/
+frontend/dist/
+frontend/node_modules/
+_to_delete/
+frontend/wailsjs/
+frontend/package.json.md5
+
+# секреты — никогда не коммитить
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+id_ecdsa*
+*.conf
+!build/**/*.conf
+.env
+.env.*
+known_hosts
+.app/

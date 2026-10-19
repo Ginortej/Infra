@@ -43,7 +43,7 @@ export function createMock() {
   ];
   const terms = {};
   let gitDefault = "github-ginortej";
-  const gitAcc = [
+  const gitAcc = localStorage.getItem("mock.noacc") ? [] : [
     { id: "github-ginortej", provider: "github", host: "github.com", label: "Личный", username: "Ginortej", name: "Ivan Petrov", email: "1234+Ginortej@users.noreply.github.com", gitAuth: "token", sshKey: "", hasToken: true },
     { id: "gitlab-ivan", provider: "gitlab", host: "git.company.ru", label: "Работа", username: "ivan.petrov", name: "Иван Петров", email: "ivan@company.ru", gitAuth: "ssh", sshKey: "C:\\Users\\user\\.ssh\\infra_work", hasToken: true },
   ];

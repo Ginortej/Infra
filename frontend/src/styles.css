@@ -678,3 +678,7 @@ svg.fill { fill: currentColor; stroke: none; }
 /* кнопка git-аккаунта в статус-баре */
 .statusbar .git-sb .prov svg { width: 12px; height: 12px; }
 .statusbar .git-sb { color: var(--text-2); }
+
+/* кнопки в пустых состояниях панели — в одну строку, по центру */
+.side-empty .btn { white-space: nowrap; margin-top: 10px; max-width: 100%; justify-content: center; }
+.side-empty .btn svg { width: 13px; height: 13px; }

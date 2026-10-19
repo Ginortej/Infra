@@ -81,7 +81,7 @@ export function gitSideHtml(match, act) {
       <span class="prov ${a.provider}">${provIcon(a.provider)}</span><span class="name">${esc(a.label || a.username)}</span>
       <span class="meta">${a.gitAuth === "ssh" ? "ssh" : a.hasToken ? "token" : "—"}</span>
       <span class="hover-acts"><button class="icon-btn" data-acc-edit="${esc(a.id)}" title="Изменить">${I.gear}</button></span></div>`).join("")
-      || `<div class="side-empty small">Нет аккаунтов.<br><button class="btn small" data-acc-add>${I.plus}Добавить GitHub / GitLab</button></div>`}
+      || `<div class="side-empty small">GitHub, GitLab или свой GitLab<br><button class="btn small" data-acc-add>${I.plus}Добавить аккаунт</button></div>`}
   </div></div>`;
   const repos = G.repos.filter((r) => match(r.name + r.path + r.remote));
   html += `<div class="group" data-group="git-repos"><div class="group-label">${I.chev}<span>Репозитории</span><span class="cnt">${G.repos.length}</span></div><div class="group-items">
@@ -92,7 +92,7 @@ export function gitSideHtml(match, act) {
         <div class="sub mono">${r.error ? `<span class="err-t">${esc(r.error)}</span>` : !r.isRepo ? "не git-репозиторий" : `${esc(r.branch || "")}${r.changes ? ` · ${r.changes} изм.` : ""}${r.ahead ? ` · ↑${r.ahead}` : ""}${r.behind ? ` · ↓${r.behind}` : ""}`}</div></div>
         ${a ? `<span class="prov ${a.provider}" title="${esc(a.label)}">${provIcon(a.provider)}</span>` : ""}
       </div>`;
-    }).join("") || `<div class="side-empty small">Добавь папку с репозиторием или склонируй.<br><button class="btn small" data-repo-add>${I.plus}Добавить</button></div>`}
+    }).join("") || `<div class="side-empty small">Папка, клон или новый репозиторий<br><button class="btn small" data-repo-add>${I.plus}Добавить репозиторий</button></div>`}
   </div></div>`;
   return html;
 }

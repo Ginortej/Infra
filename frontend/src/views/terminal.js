@@ -230,7 +230,7 @@ export function terminalTab(spec) {
     try {
       tab.sid = spec.kind === "ssh"
         ? await api.TermOpenSSH(spec.server, tab.vpn === undefined ? "@default" : tab.vpn, cols, rows)
-        : await api.TermOpenLocal(spec.shell, tab.vpn || "", cols, rows);
+        : spec.cwd ? await api.TermOpenLocalAt(spec.shell, tab.vpn || "", spec.cwd, cols, rows) : await api.TermOpenLocal(spec.shell, tab.vpn || "", cols, rows);
       register(tab.sid, tab);
       tab.renderHead();
       app.renderTabs();

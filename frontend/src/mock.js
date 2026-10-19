@@ -42,6 +42,23 @@ export function createMock() {
     { id: "wsl:Ubuntu", name: "WSL · Ubuntu", kind: "wsl", path: "C:\\Windows\\System32\\wsl.exe" },
   ];
   const terms = {};
+  const gitAcc = [
+    { id: "github-ginortej", provider: "github", host: "github.com", label: "Личный", username: "Ginortej", name: "Ivan Petrov", email: "1234+Ginortej@users.noreply.github.com", gitAuth: "token", sshKey: "", hasToken: true },
+    { id: "gitlab-ivan", provider: "gitlab", host: "git.company.ru", label: "Работа", username: "ivan.petrov", name: "Иван Петров", email: "ivan@company.ru", gitAuth: "ssh", sshKey: "C:\\Users\\user\\.ssh\\infra_work", hasToken: true },
+  ];
+  const gitRepos = [
+    { path: "C:\\Users\\user\\Desktop\\Working\\Program_Server", name: "Program_Server", vault: false,
+      st: { branch: "main", upstream: "origin/main", ahead: 1, behind: 0, account: "github-ginortej", remotes: [{ name: "origin", url: "https://github.com/Ginortej/Infra.git", host: "github.com", path: "Ginortej/Infra", web: "https://github.com/Ginortej/Infra" }],
+        files: [{ path: "frontend/src/views/git.js", index: "A" }, { path: "app_git.go", index: "M" }, { path: "servers/prod/prod-web-01.yaml", work: "M" }, { path: "README.md", work: "M" }, { path: "internal/gitx/old.go", work: "D" }, { path: "notes/todo.md", untracked: true, work: "?" }] },
+      log: [
+        { hash: "6b28f4e0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6", short: "6b28f4e", author: "Ginortej", time: Date.now() / 1000 - 3600, subject: "Ctrl+A в терминале и скрытие левой панели", refs: "HEAD -> main, origin/main" },
+        { hash: "4eb864d0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6", short: "4eb864d", author: "Ginortej", time: Date.now() / 1000 - 7200, subject: "Терминал: темы, отступы, поиск и удобства", refs: "" },
+        { hash: "ac5a2610a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6", short: "ac5a261", author: "Ginortej", time: Date.now() / 1000 - 86400 * 2, subject: "Infra: Go + Wails приложение для серверов, VPN и лаб", refs: "tag: v0.1.0" },
+      ] },
+    { path: "D:\\work\\ansible-roles", name: "ansible-roles", vault: false,
+      st: { branch: "develop", upstream: "origin/develop", ahead: 0, behind: 3, account: "gitlab-ivan", remotes: [{ name: "origin", url: "git@git.company.ru:ops/ansible-roles.git", host: "git.company.ru", path: "ops/ansible-roles", web: "https://git.company.ru/ops/ansible-roles" }], files: [] },
+      log: [] },
+  ];
 
   const job = (title, done) => {
     const id = "job" + seq++;
@@ -140,6 +157,39 @@ export function createMock() {
       return run;
     },
     CancelRun: () => {},
+
+    // ---------- Git ----------
+    GitInfo: () => ({ path: "C:\\Program Files\\Git\\cmd\\git.exe", version: "git version 2.47.0.windows.1" }),
+    GitAccounts: () => gitAcc,
+    GitSaveAccount: (a, tok) => { const x = { ...a, id: a.id || a.provider + "-" + (a.username || "new"), hasToken: a.hasToken || !!tok }; const i = gitAcc.findIndex((y) => y.id === x.id); i >= 0 ? (gitAcc[i] = x) : gitAcc.push(x); return x; },
+    GitDeleteAccount: (id) => { const i = gitAcc.findIndex((y) => y.id === id); if (i >= 0) gitAcc.splice(i, 1); },
+    GitVerify: (a) => new Promise((r) => setTimeout(() => r({ username: a.provider === "gitlab" ? "ivan.petrov" : "Ginortej", name: "Ivan Petrov", email: a.provider === "gitlab" ? "ivan@company.ru" : "1234+Ginortej@users.noreply.github.com" }), 500)),
+    GitTestSSH: () => "Hi Ginortej! You've successfully authenticated, but GitHub does not provide shell access.",
+    GitGenerateKey: (n) => ({ path: "C:\\Users\\user\\.ssh\\infra_" + n, pub: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGq3l9Xb8sZ1mock infra" }),
+    GitPublicKey: () => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGq3l9Xb8sZ1mock infra",
+    GitUploadKey: () => {},
+    GitLinks: (a) => ({ token: `https://${a.host || "github.com"}/settings/tokens/new`, keys: `https://${a.host || "github.com"}/settings/ssh/new` }),
+    GitRepos: () => gitRepos.map((r) => ({ ...r, changes: r.st.files.length, branch: r.st.branch, ahead: r.st.ahead, behind: r.st.behind, account: r.st.account, isRepo: true, remote: r.st.remotes[0] ? r.st.remotes[0].host + "/" + r.st.remotes[0].path : "" })),
+    GitAddRepo: () => {}, GitRemoveRepo: () => {}, GitInit: () => {},
+    GitStatus: (p) => ({ isRepo: true, root: p, ...(gitRepos.find((r) => r.path === p)?.st || {}) }),
+    GitSetAccount: (p, id) => { const r = gitRepos.find((x) => x.path === p); if (r) r.st.account = id; },
+    GitStage: (p, files) => { const r = gitRepos.find((x) => x.path === p); r.st.files.forEach((f) => { if (!files.length || files.includes(f.path)) { f.index = f.untracked ? "A" : f.work || f.index; f.work = ""; f.untracked = false; } }); },
+    GitUnstage: (p, files) => { const r = gitRepos.find((x) => x.path === p); r.st.files.forEach((f) => { if (!files.length || files.includes(f.path)) { f.work = f.index === "A" ? "?" : f.index; f.untracked = f.index === "A"; f.index = ""; } }); },
+    GitDiscard: (p, a, b) => { const r = gitRepos.find((x) => x.path === p); r.st.files = r.st.files.filter((f) => !a.includes(f.path) && !b.includes(f.path)); },
+    GitDiff: (p, f, staged, untr) => untr ? "@@ новый файл, 3 строк @@\n+name: new\n+host: 10.0.0.5\n+user: root\n" : `diff --git a/${f} b/${f}\nindex 3f2a1c4..9b8e7d2 100644\n--- a/${f}\n+++ b/${f}\n@@ -1,7 +1,8 @@\n name: prod-web-01\n-host: 10.0.5.11\n+host: 10.0.5.12\n port: 22\n user: deploy\n+via_vpn: work\n auth: key\n key: ~/.ssh/id_ed25519\n tags: [web]\n`,
+    GitCommit: (p) => { const r = gitRepos.find((x) => x.path === p); r.st.files = r.st.files.filter((f) => !f.index); r.st.ahead++; r.log.unshift({ hash: Math.random().toString(16).slice(2).padEnd(40, "0"), short: Math.random().toString(16).slice(2, 9), author: "Ivan Petrov", time: Date.now() / 1000, subject: "новый коммит", refs: "HEAD -> main" }); return ""; },
+    GitPush: (p) => job("git push", () => { gitRepos.find((x) => x.path === p).st.ahead = 0; emit("git:changed", p); }),
+    GitPull: (p) => job("git pull", () => { gitRepos.find((x) => x.path === p).st.behind = 0; emit("git:changed", p); }),
+    GitFetch: () => job("git fetch"),
+    GitBranches: () => [{ name: "main", current: true, upstream: "origin/main" }, { name: "feature/terminal", upstream: "" }, { name: "origin/main", remote: true }, { name: "origin/release", remote: true }],
+    GitCheckout: () => {}, GitCreateBranch: () => {},
+    GitLog: (p) => gitRepos.find((x) => x.path === p).log,
+    GitShow: (p, h) => `commit ${h}\nАвтор: Ivan Petrov <ivan@x>\nДата:  19.10.2026 17:02\n\nТерминал: темы, отступы, поиск\n\n frontend/src/termprefs.js | 160 +++++\n 1 file changed, 160 insertions(+)\n\ndiff --git a/frontend/src/termprefs.js b/frontend/src/termprefs.js\nnew file mode 100644\n--- /dev/null\n+++ b/frontend/src/termprefs.js\n@@ -0,0 +1,4 @@\n+// Оформление терминала\n+import { store } from "./ui.js";\n+\n+export const THEMES = {};\n`,
+    GitSetRemote: () => {},
+    GitListRemote: () => new Promise((r) => setTimeout(() => r([{ name: "Infra", fullName: "Ginortej/Infra", private: false, https: "https://github.com/Ginortej/Infra.git", ssh: "git@github.com:Ginortej/Infra.git", desc: "Серверы, VPN и лабы" }, { name: "dotfiles", fullName: "Ginortej/dotfiles", private: true, https: "https://github.com/Ginortej/dotfiles.git", ssh: "git@github.com:Ginortej/dotfiles.git", desc: "" }]), 400)),
+    GitClone: () => job("git clone"),
+    GitCreateRemote: () => job("Создание репозитория"),
+    TermOpenLocalAt: (...a) => api.TermOpenLocal(a[0], a[1]),
   };
   return { api, on: (ev, fn) => ((listeners[ev] ??= []).push(fn), () => {}) };
 }

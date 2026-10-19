@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	goruntime "runtime"
+	"strings"
 
 	"infra/internal/shells"
 	"infra/internal/sshx"
@@ -33,6 +34,11 @@ func (a *App) RescanShells() []shells.Shell {
 
 // TermOpenLocal открывает локальную оболочку. vpn — id профиля или "" (напрямую).
 func (a *App) TermOpenLocal(shellID, vpnID string, cols, rows int) (string, error) {
+	return a.TermOpenLocalAt(shellID, vpnID, "", cols, rows)
+}
+
+// TermOpenLocalAt — то же, но в указанной папке.
+func (a *App) TermOpenLocalAt(shellID, vpnID, cwd string, cols, rows int) (string, error) {
 	var sh *shells.Shell
 	for _, s := range a.ListShells() {
 		if s.ID == shellID {
@@ -60,7 +66,16 @@ func (a *App) TermOpenLocal(shellID, vpnID string, cols, rows int) (string, erro
 	if v := a.Vault(); v != nil && sh.Kind != "wsl" {
 		dir = v.Root
 	}
-	return a.terms.OpenLocal(sh.CommandLine(), dir, env, cols, rows)
+	cmdline := sh.CommandLine()
+	if cwd != "" {
+		dir = cwd
+		if sh.Kind == "wsl" { // wsl --cd принимает и путь Windows
+			c := *sh
+			c.Args = []string{"-d", strings.TrimPrefix(sh.ID, "wsl:"), "--cd", cwd}
+			cmdline = c.CommandLine()
+		}
+	}
+	return a.terms.OpenLocal(cmdline, dir, env, cols, rows)
 }
 
 // TermOpenSSH подключается к серверу. vpnID: "@default" — как в конфиге сервера, "" — напрямую.

@@ -561,3 +561,116 @@ body.sidebar-hidden .sidebar, body.sidebar-hidden .resizer { display: none; }
 body.sidebar-hidden .side-toggle { color: var(--accent); }
 body.sidebar-hidden .titlebar-left { width: auto; }
 body.no-vault .side-toggle { display: none; }
+
+/* =====================================================================
+   Git
+   ===================================================================== */
+svg.fill { fill: currentColor; stroke: none; }
+.prov { display: inline-grid; place-items: center; flex-shrink: 0; }
+.prov svg { width: 14px; height: 14px; }
+.prov.github { color: #d7d8dc; }
+.prov.gitlab { color: #fc8a4a; }
+.acc-chip { display: inline-flex; align-items: center; gap: 6px; }
+.acc-chip svg { width: 13px; height: 13px; }
+.acc-chip.gitlab svg { color: #fc8a4a; }
+.acc-chip.none { color: var(--text-3); }
+.small-notice { margin: 6px 6px 8px; font-size: 12px; }
+.err-t { color: var(--err); }
+.err-t svg, .ok-t svg { width: 13px; height: 13px; vertical-align: -2px; }
+.side-empty.small { padding: 12px 8px; font-size: 12px; }
+.item.repo-item { height: auto; min-height: 40px; padding-top: 5px; padding-bottom: 5px; align-items: center; }
+.item.repo-item > svg { color: var(--text-3); }
+.repo-txt { flex: 1; min-width: 0; }
+.repo-txt .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.repo-txt .sub { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.repo-txt .tag { font-size: 9.5px; padding: 0 4px; }
+.notice.info { background: var(--accent-dim); border: 1px solid rgba(139,156,244,.25); }
+.notice.info > svg { color: var(--accent); margin-top: 2px; }
+.notice .link { padding: 0; font-size: inherit; }
+
+.git-view .git-head .chip { max-width: 240px; }
+.git-view .git-head .chip > span:not(.acc-chip):not(.warn-t) { overflow: hidden; text-overflow: ellipsis; }
+.git-view .git-head .btn b { font: 600 11px var(--mono); margin-left: 2px; }
+.git-view.busy .git-head [data-h] { opacity: .5; pointer-events: none; }
+.git-banner { padding: 10px 14px 0; }
+.git-banner[hidden] { display: none; }
+.git-banner .notice { margin: 0; }
+.git-view.not-repo .git-body { display: none; }
+.git-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 80px 20px; text-align: center; }
+.git-empty > svg { width: 34px; height: 34px; color: var(--text-3); }
+.git-empty h3 { margin: 6px 0 0; font-weight: 600; }
+.git-empty p { margin: 0 0 10px; }
+.git-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 380px) 1fr; }
+.git-left { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--bg-2); }
+.git-tabs { margin: 10px 12px 0; }
+.seg.wide { display: flex; }
+.seg.wide button { flex: 1; }
+.commit-box { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.commit-box textarea { width: 100%; min-height: 64px; max-height: 200px; resize: vertical; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); outline: none; line-height: 1.45; }
+.commit-box textarea:focus { border-color: #4a4d5c; }
+.commit-row { display: flex; gap: 6px; }
+.commit-row .btn.primary { flex: 1; justify-content: center; }
+.commit-as { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.changes, .history { flex: 1; overflow-y: auto; padding: 6px 6px 16px; }
+.fsec { margin-bottom: 6px; }
+.fsec-h { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); }
+.fsec-h .cnt { font: 10.5px var(--mono); }
+.fsec-h .icon-btn { width: 22px; height: 22px; opacity: 0; }
+.fsec:hover .fsec-h .icon-btn { opacity: 1; }
+.frow2 { display: flex; align-items: center; gap: 6px; height: 27px; padding: 0 6px 0 10px; border-radius: 4px; cursor: pointer; }
+.frow2:hover { background: var(--bg-hover); }
+.frow2.sel { background: var(--bg-active); }
+.frow2 .fname { white-space: nowrap; }
+.frow2 .fdir { flex: 1; min-width: 0; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.frow2 .facts { display: none; gap: 1px; }
+.frow2:hover .facts { display: flex; }
+.frow2 .facts .icon-btn { width: 22px; height: 22px; }
+.fstat { width: 16px; text-align: center; font: 600 11px var(--mono); flex-shrink: 0; }
+.fstat.mod { color: var(--warn); } .fstat.add { color: var(--ok); } .fstat.del { color: var(--err); } .fstat.ren { color: var(--accent); } .fstat.conf { color: #ff6bd5; }
+.git-clean { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 40px 12px; text-align: center; color: var(--text-2); }
+.git-clean > svg { width: 22px; height: 22px; color: var(--ok); margin-bottom: 4px; }
+.crow { padding: 7px 10px; border-radius: 5px; cursor: pointer; }
+.crow:hover { background: var(--bg-hover); }
+.crow.sel { background: var(--bg-active); }
+.csubj { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmeta { display: flex; gap: 8px; margin-top: 2px; white-space: nowrap; overflow: hidden; }
+.crefs { color: var(--accent); overflow: hidden; text-overflow: ellipsis; }
+.pad { padding: 12px; }
+.git-right { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #141517; }
+.diff-head { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--bg); }
+.diff-head:empty { display: none; }
+.diff { flex: 1; overflow: auto; }
+.diff-empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--text-2); }
+.diff-empty > svg { width: 26px; height: 26px; color: var(--text-3); }
+.diff-lines { font-size: 12.5px; line-height: 1.55; padding: 6px 0 24px; min-width: max-content; }
+.dl { display: grid; grid-template-columns: 48px 48px 1fr; white-space: pre; }
+.dl .ln { text-align: right; padding-right: 10px; color: #4d5058; user-select: none; }
+.dl .dt { padding: 0 16px 0 6px; }
+.dl.add { background: rgba(108,197,154,.10); } .dl.add .dt { color: #9fe2bf; }
+.dl.del { background: rgba(229,115,115,.10); } .dl.del .dt { color: #f2a5a5; }
+.dl.hunk { color: var(--accent); background: rgba(139,156,244,.06); margin-top: 6px; }
+.dl.meta { color: var(--text-3); }
+
+/* форма аккаунта */
+.acc-form { gap: 14px; }
+.prov-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.prov-pick button { display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text-2); font-weight: 500; }
+.prov-pick button svg { width: 18px; height: 18px; }
+.prov-pick button[data-p^="gitlab"] svg { color: #fc8a4a; }
+.prov-pick button:hover { border-color: #4a4d58; color: var(--text); }
+.prov-pick button.on { border-color: var(--accent); background: var(--accent-dim); color: var(--text); }
+.host-row[hidden], .ssh-row[hidden], .pubkey[hidden] { display: none; }
+.acc-form .seg.wide { height: 30px; }
+.acc-form .seg.wide button { height: 28px; }
+.acc-form .path-input .btn { white-space: nowrap; }
+.pubkey { margin-top: 8px; padding: 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); }
+.pubkey pre { margin: 6px 0 8px; white-space: pre-wrap; word-break: break-all; font-size: 11.5px; color: var(--text-2); }
+.row-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.verify-res:empty { display: none; }
+.verify-res { display: flex; align-items: center; gap: 8px; }
+.clone-list .cl-items { max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 4px; margin-top: 6px; background: var(--bg); }
+.cl-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px; cursor: pointer; white-space: nowrap; overflow: hidden; }
+.cl-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+.cl-item .dim { overflow: hidden; text-overflow: ellipsis; }
+.cl-item:hover { background: var(--bg-hover); }
+.cl-item.on { background: var(--accent-dim); }

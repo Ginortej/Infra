@@ -18,6 +18,7 @@ type Settings struct {
 	SingBox      string   `json:"singbox"`
 	WSLDistro    string   `json:"wslDistro"`
 	Parallel     int      `json:"parallel"`
+	GitRepos     []string `json:"gitRepos"`
 }
 
 var settingsMu sync.Mutex

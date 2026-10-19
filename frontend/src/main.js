@@ -10,6 +10,7 @@ import { settingsTab } from "./views/settings.js";
 import { openRunDialog, onRunOut, onRunHost, onRunDone, onRunOpened, openRunTab } from "./views/run.js";
 import { serverForm } from "./dialogs.js";
 import { zoom } from "./termprefs.js";
+import { G, loadGit, gitSideHtml, gitSideClick, accountForm, addRepoMenu, cloneDialog, gitTab } from "./views/git.js";
 
 let seq = 1;
 const collapsed = new Set(store.get("collapsed", []));
@@ -103,6 +104,7 @@ const PANELS = {
   servers: { title: "Серверы", actions: [["Добавить сервер", I.plus, () => serverForm()], ["Проверить доступность", I.refresh, () => refreshServers(true)]] },
   vpn: { title: "VPN", actions: [["Новый профиль", I.plus, () => newFile("vpn/new-profile.yaml", "name: new-profile\ntype: wireguard\nwireguard: vpn/new-profile.conf\nsocks: 10810\n")]] },
   labs: { title: "Лабы", actions: [["Новая лаба", I.plus, () => newFile("labs/new-lab.yaml", null, "labs/example-lab.yaml")]] },
+  git: { title: "Git", actions: [["Добавить аккаунт GitHub / GitLab", I.user, () => accountForm()], ["Добавить репозиторий", I.plus, (b) => addRepoMenu(b)], ["Обновить", I.refresh, () => loadGit().then(renderList)]] },
   scripts: { title: "Скрипты", actions: [["Новый bash-скрипт", I.plus, () => newFile("scripts/snippets/new.sh", "#!/usr/bin/env bash\n# выполнится на выбранных серверах\n\nhostname\n")]] },
 };
 
@@ -123,7 +125,7 @@ function renderSidebar() {
     <div class="side-head"><span class="side-title">${P.title}</span><div class="side-actions">${P.actions.map(([t, i], n) => `<button class="icon-btn" title="${t}" data-sa="${n}">${i}</button>`).join("")}</div></div>
     <div class="side-filter">${I.search}<input placeholder="Фильтр…" spellcheck="false" value="${esc(filter)}"></div>
     <div class="side-scroll" id="sideList"></div>`;
-  $$("#sidebar [data-sa]").forEach((b) => (b.onclick = () => P.actions[+b.dataset.sa][2]()));
+  $$("#sidebar [data-sa]").forEach((b) => (b.onclick = () => P.actions[+b.dataset.sa][2](b)));
   const f = $("#sidebar .side-filter input");
   f.oninput = () => { filter = f.value; renderList(); };
   renderList();
@@ -189,6 +191,11 @@ function renderList() {
     }).join("") || `<div class="side-empty">Скриптов нет.<br>Положи .sh, .yml или .ps1 в папку scripts/</div>`;
   }
 
+  if (S.panel === "git") {
+    if (!G.loaded) loadGit().then(renderList).catch((e) => toast(esc(errText(e)), "err"));
+    html = gitSideHtml(match, act);
+  }
+
   if (S.panel === "files") {
     const tree = {};
     S.snap.tree.filter(match).forEach((p) => {
@@ -209,6 +216,7 @@ function renderList() {
 }
 
 $("#sidebar").addEventListener("click", async (e) => {
+  if (S.panel === "git" && gitSideClick(e)) return;
   const t = (s) => e.target.closest(s);
   let x;
   if ((x = t("[data-sftp]"))) return openSftp(x.dataset.sftp);
@@ -311,6 +319,10 @@ $("#tabbar").addEventListener("click", (e) => {
 function defaultShell() {
   const d = S.state?.settings?.defaultShell;
   return S.shells.find((s) => s.id === d) || S.shells[0];
+}
+function newTerminalAt(dir) {
+  const sh = defaultShell();
+  if (sh) addTab(terminalTab({ kind: "local", shell: sh.id, cwd: dir }));
 }
 function newTerminal(shellId) {
   const sh = shellId ? S.shells.find((s) => s.id === shellId) : defaultShell();
@@ -448,6 +460,9 @@ function commands() {
   S.snap.labs.forEach((l) => c.push({ cat: "Лаба", title: `Лаба: ${l.id}`, hint: l.provider, run: () => openLab(l.id) }));
   S.snap.scripts.forEach((s) => c.push({ cat: "Скрипт", title: `Запустить: ${s.path.replace(/^scripts\//, "")}`, hint: s.kind, run: () => openRunDialog(s.path) }));
   S.snap.tree.forEach((f) => c.push({ cat: "Файл", title: f, run: () => openFile(f) }));
+  G.repos.forEach((r) => c.push({ cat: "Git", title: `Репозиторий: ${r.name}`, hint: r.branch || "", run: () => addTab(gitTab(r.path)) }));
+  c.push({ cat: "Git", title: "Добавить аккаунт GitHub / GitLab", run: () => accountForm() });
+  c.push({ cat: "Git", title: "Клонировать репозиторий…", run: () => { if (!G.loaded) loadGit().then(() => cloneDialog()); else cloneDialog(); } });
   c.push({ cat: "Сервер", title: "Добавить сервер", run: () => serverForm() });
   c.push({ cat: "Хранилище", title: "Открыть другую папку…", run: () => pickVault(false) });
   c.push({ cat: "Хранилище", title: "Показать в проводнике", run: () => api.Reveal(S.state.vault) });
@@ -567,6 +582,11 @@ on("vpn:changed", refreshVpn);
 on("vault:changed", () => { reload(); S.tabs.forEach((t) => t.type === "lab" && t.refresh?.()); });
 on("files:changed", (who) => S.tabs.forEach((t) => t.type === "sftp" && (who === "local" || t.server === who) && t.onFilesChanged?.(who)));
 on("toast", (m) => toast(esc(m), "err"));
+on("info", (m) => toast(`${I.check} ${esc(m)}`));
+on("git:changed", (p) => {
+  loadGit().then(() => { if (S.panel === "git") renderList(); });
+  S.tabs.forEach((t) => t.type === "git" && t.repo === p && S.active !== t.id && t.refresh?.());
+});
 on("job", (j) => {
   const cur = (S.jobs[j.id] ??= {});
   Object.assign(cur, j);
@@ -586,7 +606,7 @@ setInterval(() => { if (S.state?.vault && document.hasFocus()) refreshServers();
 // ============================================================
 Object.assign(app, {
   addTab, activate, closeTab, renderTabs, renderSidebar, renderStatus, reload, watchJob,
-  openSSH, openSftp, openFile, openLab, openRunDialog, newTerminal, pickVault, palette,
+  openSSH, openSftp, openFile, openLab, openRunDialog, newTerminal, newTerminalAt, pickVault, palette,
 });
 
 (async function init() {

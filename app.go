@@ -14,6 +14,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"infra/internal/gitx"
 	"infra/internal/proc"
 	"infra/internal/runner"
 	"infra/internal/shells"
@@ -42,6 +43,7 @@ type App struct {
 	vpn    *vpn.Manager
 	runner *runner.Runner
 	sftp   *sftpPool
+	git    *gitx.Store
 	jobSeq atomic.Int64
 }
 
@@ -57,6 +59,7 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.settings = vault.LoadSettings()
 	a.terms = term.NewManager(a.emit)
+	a.git = gitx.NewStore()
 	a.vpn = &vpn.Manager{
 		Vault:    a.Vault,
 		Profiles: func() []vault.VPNProfile { a.mu.RLock(); defer a.mu.RUnlock(); return a.snap.VPNs },
@@ -279,6 +282,7 @@ func (a *App) SaveSettings(s vault.Settings) error {
 	a.mu.Lock()
 	s.Vault = a.settings.Vault
 	s.Recent = a.settings.Recent
+	s.GitRepos = a.settings.GitRepos
 	a.settings = s
 	a.mu.Unlock()
 	return vault.SaveSettings(s)

@@ -51,6 +51,9 @@ func (a *App) TermOpenLocalAt(shellID, vpnID, cwd string, cols, rows int) (strin
 		return "", fmt.Errorf("оболочка %q не найдена", shellID)
 	}
 	env := append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	if sh.Kind != "wsl" {
+		env = append(env, a.defaultAccountEnv()...) // git в терминале — от аккаунта по умолчанию
+	}
 	if vpnID != "" {
 		pe, err := a.vpn.ProxyEnv(vpnID)
 		if err != nil {

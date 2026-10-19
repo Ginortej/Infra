@@ -674,3 +674,7 @@ svg.fill { fill: currentColor; stroke: none; }
 .cl-item .dim { overflow: hidden; text-overflow: ellipsis; }
 .cl-item:hover { background: var(--bg-hover); }
 .cl-item.on { background: var(--accent-dim); }
+
+/* кнопка git-аккаунта в статус-баре */
+.statusbar .git-sb .prov svg { width: 12px; height: 12px; }
+.statusbar .git-sb { color: var(--text-2); }

@@ -42,6 +42,13 @@ var ErrNoGit = errors.New("git не найден. Установи Git for Windo
 // аргументы командной строки — только в окружение процесса git.
 func Env(a *Account, token string) []string {
 	env := []string{"GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never", "LC_ALL=C.UTF-8", "LANG=C.UTF-8"}
+	return append(env, AccountEnv(a, token)...)
+}
+
+// AccountEnv — только переменные аккаунта (без отключения диалогов и смены языка) —
+// для интерактивных терминалов: git в них работает от имени аккаунта.
+func AccountEnv(a *Account, token string) []string {
+	var env []string
 	if a == nil {
 		return env
 	}
@@ -56,10 +63,7 @@ func Env(a *Account, token string) []string {
 	if a.GitAuth == "ssh" && a.SSHKey != "" {
 		key := strings.ReplaceAll(a.SSHKey, `\`, "/")
 		env = append(env, fmt.Sprintf(`GIT_SSH_COMMAND=ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`, key))
-		cfg = append(cfg,
-			[2]string{"url.git@" + host + ":.insteadOf", "https://" + host + "/"},
-			[2]string{"credential.helper", ""},
-		)
+		cfg = append(cfg, [2]string{"url.git@" + host + ":.insteadOf", "https://" + host + "/"})
 	} else if token != "" {
 		user := "x-access-token"
 		if a.Provider == "gitlab" {
@@ -67,7 +71,9 @@ func Env(a *Account, token string) []string {
 		}
 		auth := base64.StdEncoding.EncodeToString([]byte(user + ":" + token))
 		cfg = append(cfg,
-			[2]string{"credential.helper", ""}, // не даём Git Credential Manager подставить другой аккаунт
+			// не даём Git Credential Manager подставить другой аккаунт — только для хоста аккаунта,
+			// чтобы вход на другие сайты в терминалах продолжал работать
+			[2]string{"credential.https://" + host + ".helper", ""},
 			[2]string{"http.https://" + host + "/.extraheader", "AUTHORIZATION: basic " + auth},
 			[2]string{"url.https://" + host + "/.insteadOf", "git@" + host + ":"},
 		)

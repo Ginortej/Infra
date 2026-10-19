@@ -148,6 +148,9 @@ func TestEnvSSH(t *testing.T) {
 	if strings.Contains(env, "extraheader") {
 		t.Fatal("ssh account must not send token header")
 	}
+	if strings.Contains(env, "credential.helper") {
+		t.Fatal("credential helpers must not be reset globally")
+	}
 	if !strings.Contains(env, "url.git@github.com:.insteadOf") {
 		t.Fatal("https remotes must be rewritten to ssh")
 	}
@@ -162,5 +165,34 @@ func TestGenerateKey(t *testing.T) {
 	}
 	if got, _ := PublicKey(p); got != pub {
 		t.Fatalf("pub mismatch %q %q", got, pub)
+	}
+}
+
+// Глобальный credential helper не должен вызываться для хоста аккаунта, но должен — для других.
+func TestCredentialHelperScoped(t *testing.T) {
+	if GitPath() == "" {
+		t.Skip("git not installed")
+	}
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="x"`)
+		w.WriteHeader(401)
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "called")
+	gcfg := filepath.Join(dir, "gitconfig")
+	write(t, gcfg, "[credential]\n\thelper = \"!f() { echo $1 >> '"+filepath.ToSlash(marker)+"'; }; f\"\n")
+	host := strings.TrimPrefix(srv.URL, "https://")
+	base := []string{"GIT_CONFIG_GLOBAL=" + gcfg, "GIT_SSL_NO_VERIFY=1"}
+
+	acc := &Account{Provider: "github", Host: host, GitAuth: "token"}
+	_, _ = Run(context.Background(), dir, append(base, Env(acc, "T")...), nil, "ls-remote", srv.URL+"/a/b.git")
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("helper called for account host")
+	}
+	other := &Account{Provider: "github", Host: "other.example", GitAuth: "token"}
+	_, _ = Run(context.Background(), dir, append(base, Env(other, "T")...), nil, "ls-remote", srv.URL+"/a/b.git")
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("helper must still work for other hosts")
 	}
 }

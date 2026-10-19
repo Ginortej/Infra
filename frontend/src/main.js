@@ -10,7 +10,7 @@ import { settingsTab } from "./views/settings.js";
 import { openRunDialog, onRunOut, onRunHost, onRunDone, onRunOpened, openRunTab } from "./views/run.js";
 import { serverForm } from "./dialogs.js";
 import { zoom } from "./termprefs.js";
-import { G, loadGit, gitSideHtml, gitSideClick, accountForm, addRepoMenu, cloneDialog, gitTab } from "./views/git.js";
+import { G, loadGit, gitSideHtml, gitSideClick, accountForm, addRepoMenu, cloneDialog, gitTab, gitStatusHtml, quickAccountMenu } from "./views/git.js";
 
 let seq = 1;
 const collapsed = new Set(store.get("collapsed", []));
@@ -85,6 +85,7 @@ function showWorkspace() {
   renderStatus();
   refreshVpn();
   refreshServers();
+  loadGit().then(renderStatus).catch(() => {});
   if (S.snap.errors?.length) toast(`${I.warn} Ошибки в конфигах: ${esc(S.snap.errors[0])}${S.snap.errors.length > 1 ? ` и ещё ${S.snap.errors.length - 1}` : ""}`, "err");
 }
 
@@ -432,6 +433,7 @@ function renderStatus() {
   const ok = Object.values(S.srv).filter((x) => x === "ok").length;
   $("#statusbar").innerHTML = `
     <button class="sb" data-go="vpn">${I.shield}${on.length ? on.map((v) => `<span class="dot ok"></span>${esc(v.id)}`).join(" ") : "VPN выкл"}</button>
+    ${gitStatusHtml(t)}
     <button class="sb" data-go="servers">${I.server}${ok}/${S.snap.servers.length} доступно</button>
     ${jobs.map(([, j]) => `<span class="sb job" title="${esc(j.msg || "")}">${I.activity}${esc(j.title)}<span class="job-bar"><div style="width:${j.pct}%"></div></span><span class="dim small">${esc(j.msg || "")}</span></span>`).join("")}
     <span class="grow"></span>
@@ -440,6 +442,8 @@ function renderStatus() {
     <button class="sb" data-vault2>${I.vault}${esc(S.snap.name || "")}</button>`;
 }
 $("#statusbar").addEventListener("click", (e) => {
+  const ga = e.target.closest("[data-gitacc]");
+  if (ga) return quickAccountMenu(ga, S.tabs.find((t) => t.id === S.active));
   const g = e.target.closest("[data-go]");
   if (g) { S.panel = g.dataset.go; renderSidebar(); }
   if (e.target.closest("[data-vault2]")) vaultMenu(e.target.closest("[data-vault2]"));
@@ -604,7 +608,10 @@ setInterval(() => { if (S.state?.vault && document.hasFocus()) refreshServers();
 // ============================================================
 //  Старт
 // ============================================================
+function showPanel(id) { S.panel = id; filter = ""; store.set("panel", id); toggleSidebar(true); renderSidebar(); }
+
 Object.assign(app, {
+  showPanel,
   addTab, activate, closeTab, renderTabs, renderSidebar, renderStatus, reload, watchJob,
   openSSH, openSftp, openFile, openLab, openRunDialog, newTerminal, newTerminalAt, pickVault, palette,
 });

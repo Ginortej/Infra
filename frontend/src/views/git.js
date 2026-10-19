@@ -31,6 +31,45 @@ export function accountChipHtml(id) {
   return `<span class="acc-chip ${a.provider}">${provIcon(a.provider)}${esc(a.label || a.username)}</span>`;
 }
 
+// ---------- Быстрое переключение аккаунта (кнопка в статус-баре) ----------
+export function gitStatusHtml(tab) {
+  const inRepo = tab?.type === "git" && tab.isRepo;
+  const id = inRepo ? tab.account : S.state?.settings?.gitDefault;
+  const a = accById(id);
+  const title = inRepo ? `Git-аккаунт репозитория ${tab.title}` : "Git-аккаунт по умолчанию (новые терминалы и репозитории без аккаунта)";
+  return `<button class="sb git-sb" data-gitacc title="${esc(title)}">${a ? `<span class="prov ${a.provider}">${provIcon(a.provider)}</span>${esc(a.label || a.username)}` : `${I.branch}<span class="dim">git: нет аккаунта</span>`}</button>`;
+}
+
+export async function quickAccountMenu(anchor, tab) {
+  if (!G.loaded) await loadGit();
+  const inRepo = tab?.type === "git" && tab.isRepo;
+  const cur = inRepo ? tab.account : S.state?.settings?.gitDefault;
+  const setDefault = async (id) => {
+    await api.GitSetDefault(id);
+    S.state = await api.GetState();
+    app.renderStatus();
+    const a = accById(id);
+    toast(a ? `${I.check} По умолчанию: <b>${esc(a.label)}</b>. Новые терминалы будут работать от него` : "Аккаунт по умолчанию снят");
+  };
+  const setRepo = async (id) => {
+    await api.GitSetAccount(tab.repo, id);
+    await loadGit(); app.renderSidebar();
+    tab.refresh();
+    const a = accById(id);
+    toast(a ? `${I.check} ${esc(tab.title)} → <b>${esc(a.label)}</b>` : "Аккаунт репозитория снят");
+  };
+  const pick = inRepo ? setRepo : setDefault;
+  menu(anchor, [
+    { header: inRepo ? `Репозиторий ${tab.title}` : "Аккаунт по умолчанию" },
+    ...G.accounts.map((a) => ({ icon: provIcon(a.provider), label: a.label || a.username, meta: `${a.username}@${a.host}`, checked: a.id === cur, onClick: () => pick(a.id) })),
+    { icon: I.user, label: inRepo ? "Без аккаунта" : "Не использовать", checked: !cur, onClick: () => pick("") },
+    { sep: true },
+    ...(inRepo ? [{ icon: I.check, label: "Сделать его аккаунтом по умолчанию", disabled: !cur, onClick: () => setDefault(cur) }] : []),
+    { icon: I.plus, label: "Добавить аккаунт…", onClick: () => accountForm() },
+    { icon: I.branch, label: "Открыть раздел Git", onClick: () => app.showPanel("git") },
+  ], { width: 320 });
+}
+
 // ---------- Боковая панель ----------
 export function gitSideHtml(match, act) {
   if (!G.loaded) return `<div class="side-empty"><span class="spin"></span></div>`;
@@ -312,6 +351,9 @@ export function gitTab(path) {
   async function refresh() {
     try { st = await api.GitStatus(path); } catch (e) { st = { error: errText(e) }; }
     if (!G.loaded) await loadGit();
+    tab.account = st?.account || "";
+    tab.isRepo = !!st?.isRepo;
+    if (S.active === tab.id) app.renderStatus();
     renderHead(); renderBanner(); renderLeft();
     if (sel?.file && !st.files?.some((f) => f.path === sel.file)) { sel = null; renderDiff(); }
     if (!sel) renderDiff();

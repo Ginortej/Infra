@@ -42,6 +42,7 @@ export function createMock() {
     { id: "wsl:Ubuntu", name: "WSL · Ubuntu", kind: "wsl", path: "C:\\Windows\\System32\\wsl.exe" },
   ];
   const terms = {};
+  let gitDefault = "github-ginortej";
   const gitAcc = [
     { id: "github-ginortej", provider: "github", host: "github.com", label: "Личный", username: "Ginortej", name: "Ivan Petrov", email: "1234+Ginortej@users.noreply.github.com", gitAuth: "token", sshKey: "", hasToken: true },
     { id: "gitlab-ivan", provider: "gitlab", host: "git.company.ru", label: "Работа", username: "ivan.petrov", name: "Иван Петров", email: "ivan@company.ru", gitAuth: "ssh", sshKey: "C:\\Users\\user\\.ssh\\infra_work", hasToken: true },
@@ -80,7 +81,7 @@ export function createMock() {
   });
 
   const api = {
-    GetState: () => ({ version: "0.1.0-dev", vault: vaultPath, recent: [vaultPath, "D:\\work\\infra-lab"].filter(Boolean), os: "windows", settings: { parallel: 10 },
+    GetState: () => ({ version: "0.1.0-dev", vault: vaultPath, recent: [vaultPath, "D:\\work\\infra-lab"].filter(Boolean), os: "windows", settings: { parallel: 10, gitDefault },
       detected: { vboxmanage: "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe", vmrun: "", vmwareDir: "C:\\Users\\user\\Documents\\Virtual Machines", singbox: "", wslDistro: "Ubuntu", parallel: 10 } }),
     PickFolder: () => prompt("Путь к папке (в приложении здесь откроется системный диалог)", "C:\\Users\\user\\Infra") || "",
     PickFile: () => prompt("Путь к файлу", "C:\\Users\\user\\.ssh\\id_ed25519") || "",
@@ -161,6 +162,7 @@ export function createMock() {
     // ---------- Git ----------
     GitInfo: () => ({ path: "C:\\Program Files\\Git\\cmd\\git.exe", version: "git version 2.47.0.windows.1" }),
     GitAccounts: () => gitAcc,
+    GitSetDefault: (id) => { gitDefault = id; },
     GitSaveAccount: (a, tok) => { const x = { ...a, id: a.id || a.provider + "-" + (a.username || "new"), hasToken: a.hasToken || !!tok }; const i = gitAcc.findIndex((y) => y.id === x.id); i >= 0 ? (gitAcc[i] = x) : gitAcc.push(x); return x; },
     GitDeleteAccount: (id) => { const i = gitAcc.findIndex((y) => y.id === id); if (i >= 0) gitAcc.splice(i, 1); },
     GitVerify: (a) => new Promise((r) => setTimeout(() => r({ username: a.provider === "gitlab" ? "ivan.petrov" : "Ginortej", name: "Ivan Petrov", email: a.provider === "gitlab" ? "ivan@company.ru" : "1234+Ginortej@users.noreply.github.com" }), 500)),

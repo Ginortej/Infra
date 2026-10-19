@@ -36,7 +36,45 @@ func (a *App) GitSaveAccount(acc gitx.Account, token string) (gitx.Account, erro
 	return a.git.Save(acc, token)
 }
 
-func (a *App) GitDeleteAccount(id string) error { return a.git.Delete(id) }
+func (a *App) GitDeleteAccount(id string) error {
+	if a.gitDefault() == id {
+		_ = a.GitSetDefault("")
+	}
+	return a.git.Delete(id)
+}
+
+func (a *App) gitDefault() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.settings.GitDefault
+}
+
+// GitSetDefault — аккаунт по умолчанию: git в новых терминалах Infra и репозитории без своего аккаунта.
+func (a *App) GitSetDefault(id string) error {
+	if id != "" {
+		if _, err := a.git.Get(id); err != nil {
+			return err
+		}
+	}
+	a.mu.Lock()
+	a.settings.GitDefault = id
+	s := a.settings
+	a.mu.Unlock()
+	return vault.SaveSettings(s)
+}
+
+// defaultAccountEnv — окружение аккаунта по умолчанию для терминалов.
+func (a *App) defaultAccountEnv() []string {
+	id := a.gitDefault()
+	if id == "" {
+		return nil
+	}
+	acc, err := a.git.Get(id)
+	if err != nil {
+		return nil
+	}
+	return gitx.AccountEnv(&acc, a.git.Token(id))
+}
 
 // GitVerify проверяет токен (новый или сохранённый) и возвращает профиль.
 func (a *App) GitVerify(acc gitx.Account, token string) (gitx.Profile, error) {
@@ -213,7 +251,7 @@ func (a *App) guessAccount(st gitx.Status) string {
 		}
 	}
 	if host == "" {
-		return ""
+		return a.gitDefault() // remote ещё нет — аккаунт по умолчанию
 	}
 	var found []string
 	for _, acc := range a.git.List() {
@@ -223,6 +261,11 @@ func (a *App) guessAccount(st gitx.Status) string {
 	}
 	if len(found) == 1 {
 		return found[0]
+	}
+	if d := a.gitDefault(); d != "" {
+		if acc, err := a.git.Get(d); err == nil && acc.Host == host {
+			return d
+		}
 	}
 	return ""
 }

@@ -19,6 +19,7 @@ type Settings struct {
 	WSLDistro    string   `json:"wslDistro"`
 	Parallel     int      `json:"parallel"`
 	GitRepos     []string `json:"gitRepos"`
+	GitDefault   string   `json:"gitDefault"` // аккаунт по умолчанию
 }
 
 var settingsMu sync.Mutex

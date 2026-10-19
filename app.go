@@ -283,6 +283,7 @@ func (a *App) SaveSettings(s vault.Settings) error {
 	s.Vault = a.settings.Vault
 	s.Recent = a.settings.Recent
 	s.GitRepos = a.settings.GitRepos
+	s.GitDefault = a.settings.GitDefault
 	a.settings = s
 	a.mu.Unlock()
 	return vault.SaveSettings(s)

@@ -14,6 +14,9 @@ export async function loadGit() {
 }
 
 const accById = (id) => G.accounts.find((a) => a.id === id);
+// "https://git.x.ru/gitlab/-/profile" → "git.x.ru/gitlab"
+export const normHost = (h) => (h || "").trim().replace(/^https?:?\/\//i, "").replace(/\/-\/.*$/, "").replace(/\/{2,}/g, "/").replace(/^\/+|\/+$/g, "");
+const domainOf = (h) => (h || "").split("/")[0].toLowerCase();
 const provIcon = (p) => (p === "gitlab" ? I.gitlab : I.github);
 const shortPath = (p) => p.replace(/^([A-Za-z]:\\Users\\[^\\]+)/, "~");
 const relTime = (t) => {
@@ -152,7 +155,7 @@ export function accountForm(existing) {
       <button type="button" data-p="gitlab" class="${a.provider === "gitlab" && !custom ? "on" : ""}">${I.gitlab}GitLab</button>
       <button type="button" data-p="gitlab-self" class="${custom ? "on" : ""}">${I.gitlab}Свой GitLab</button>
     </div>
-    <label class="field host-row" ${custom ? "" : "hidden"}><span>Адрес сервера</span><input name="host" value="${esc(custom ? a.host : "")}" placeholder="git.company.ru"></label>
+    <label class="field host-row" ${custom ? "" : "hidden"}><span>Адрес сервера <span class="dim small">· как в браузере, можно с подпапкой</span></span><input name="host" value="${esc(custom ? a.host : "")}" placeholder="git.company.ru  или  company.ru/gitlab"></label>
     <div class="grid2 form">
       <label class="field"><span>Название</span><input name="label" value="${esc(a.label)}" placeholder="Работа / Личный"></label>
       <label class="field"><span>Вход в git</span>
@@ -184,7 +187,7 @@ export function accountForm(existing) {
     const pb = body.querySelector(".prov-pick .on")?.dataset.p || "github";
     return {
       ...a, provider: pb === "github" ? "github" : "gitlab",
-      host: pb === "gitlab-self" ? f("host").value.trim() : pb === "github" ? "github.com" : "gitlab.com",
+      host: pb === "gitlab-self" ? normHost(f("host").value) : pb === "github" ? "github.com" : "gitlab.com",
       label: f("label").value.trim(), username: f("username").value.trim(), name: f("name").value.trim(), email: f("email").value.trim(),
       gitAuth: body.querySelector("[data-auth].on").dataset.auth, sshKey: f("sshKey").value.trim(),
     };
@@ -366,7 +369,7 @@ export function gitTab(path) {
     if (!st?.isRepo) { head.innerHTML = `<div class="crumbs">${I.branch}<b>${esc(name)}</b><span class="dim mono">${esc(shortPath(path))}</span></div>`; return; }
     const origin = st.remotes?.find((r) => r.name === "origin") || st.remotes?.[0];
     const acc = accById(st.account);
-    const mismatch = acc && origin && origin.host && acc.host !== origin.host;
+    const mismatch = acc && origin && origin.host && domainOf(acc.host) !== origin.host;
     head.innerHTML = `
       <div class="crumbs">${I.branch}<b>${esc(name)}</b><span class="dim mono" title="${esc(path)}">${esc(shortPath(path))}</span></div>
       <div class="spacer"></div>

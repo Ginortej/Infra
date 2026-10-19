@@ -18,6 +18,7 @@ import (
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
 func apiBase(a Account) string {
+	a = a.Fix()
 	if a.Provider == "github" {
 		if a.Host == "github.com" {
 			return "https://api.github.com"
@@ -28,6 +29,7 @@ func apiBase(a Account) string {
 }
 
 func call(ctx context.Context, a Account, token, method, path string, body any, out any) error {
+	a = a.Fix()
 	if token == "" {
 		return fmt.Errorf("у аккаунта %s нет токена — без него API %s недоступен", a.Label, a.Provider)
 	}
@@ -102,7 +104,7 @@ func Verify(ctx context.Context, a Account, token string) (Profile, error) {
 		p = Profile{Username: u.Login, Name: firstNonEmpty(u.Name, u.Login), Email: u.Email, Avatar: u.Avatar}
 		if p.Email == "" {
 			// приватная почта — используем noreply-адрес GitHub
-			p.Email = fmt.Sprintf("%d+%s@users.noreply.%s", u.ID, u.Login, a.Host)
+			p.Email = fmt.Sprintf("%d+%s@users.noreply.%s", u.ID, u.Login, a.Fix().Domain())
 		}
 		return p, nil
 	}
@@ -195,7 +197,7 @@ func TestSSH(ctx context.Context, a Account) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	out, _ := proc.Output(ctx, sshPath, "-T", "-i", a.SSHKey, "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "git@"+a.Host)
+	out, _ := proc.Output(ctx, sshPath, "-T", "-i", a.SSHKey, "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", "git@"+a.Fix().Domain())
 	out = strings.TrimSpace(out)
 	low := strings.ToLower(out)
 	if strings.Contains(low, "successfully authenticated") || strings.Contains(low, "welcome to gitlab") || strings.Contains(low, "welcome to") {
@@ -209,6 +211,7 @@ func TestSSH(ctx context.Context, a Account) (string, error) {
 
 // TokenURL — страница создания токена с нужными правами.
 func TokenURL(a Account) string {
+	a = a.Fix()
 	if a.Provider == "github" {
 		return "https://" + a.Host + "/settings/tokens/new?description=Infra&scopes=repo,read:user,user:email,admin:public_key"
 	}
@@ -217,6 +220,7 @@ func TokenURL(a Account) string {
 
 // KeysURL — страница добавления SSH-ключа.
 func KeysURL(a Account) string {
+	a = a.Fix()
 	if a.Provider == "github" {
 		return "https://" + a.Host + "/settings/ssh/new"
 	}

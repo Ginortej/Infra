@@ -196,3 +196,60 @@ func TestCredentialHelperScoped(t *testing.T) {
 		t.Fatal("helper must still work for other hosts")
 	}
 }
+
+func TestNormalizeHost(t *testing.T) {
+	cases := map[string]string{
+		"https://git.example.com/gitlab/":                                      "git.example.com/gitlab",
+		"https//git.example.com/gitlab//":                                      "git.example.com/gitlab",
+		"https://Git.Company.ru/gitlab/-/user_settings/personal_access_tokens": "git.company.ru/gitlab",
+		"  GitLab.com ":          "gitlab.com",
+		"http://git.local:8080/": "git.local:8080",
+	}
+	for in, want := range cases {
+		if got := NormalizeHost(in); got != want {
+			t.Errorf("%q → %q, want %q", in, got, want)
+		}
+	}
+	a := Account{Provider: "gitlab", Host: "https://git.example.com/gitlab/"}
+	if u := TokenURL(a); u != "https://git.example.com/gitlab/-/user_settings/personal_access_tokens?name=Infra&scopes=api,write_repository" {
+		t.Errorf("token url %s", u)
+	}
+	if b := apiBase(a); b != "https://git.example.com/gitlab/api/v4" {
+		t.Errorf("api %s", b)
+	}
+	env := strings.Join(Env(&a, "T"), "\n")
+	for _, want := range []string{
+		"http.https://git.example.com/gitlab/.extraheader",
+		"credential.https://git.example.com.helper",
+		"GIT_CONFIG_VALUE_2=git@git.example.com:",
+	} {
+		if !strings.Contains(env, want) {
+			t.Errorf("env lacks %q:\n%s", want, env)
+		}
+	}
+}
+
+func TestTokenHeaderSubpath(t *testing.T) {
+	if GitPath() == "" {
+		t.Skip("git not installed")
+	}
+	var mu sync.Mutex
+	var auth string
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		if a := r.Header.Get("Authorization"); a != "" {
+			auth = a
+		}
+		mu.Unlock()
+		w.WriteHeader(404)
+	}))
+	defer srv.Close()
+	acc := &Account{Provider: "gitlab", Host: srv.URL + "/gitlab/", GitAuth: "token"}
+	env := append(Env(acc, "SECRET"), "GIT_SSL_NO_VERIFY=1")
+	_, _ = Run(context.Background(), t.TempDir(), env, nil, "ls-remote", srv.URL+"/gitlab/grp/proj.git")
+	mu.Lock()
+	defer mu.Unlock()
+	if auth == "" {
+		t.Fatal("token not sent for GitLab in subfolder")
+	}
+}

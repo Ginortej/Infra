@@ -183,10 +183,47 @@ func firstNonEmpty(v ...string) string {
 	return ""
 }
 
-func normalizeHost(h string) string {
-	h = strings.TrimSpace(strings.ToLower(h))
-	h = strings.TrimPrefix(strings.TrimPrefix(h, "https://"), "http://")
-	return strings.TrimRight(h, "/")
+// NormalizeHost приводит адрес сервера к виду "host" или "host/подпапка"
+// (GitLab бывает установлен не в корень сайта): убирает схему, лишние слэши, хвост "/-/…".
+func NormalizeHost(h string) string {
+	h = strings.TrimSpace(h)
+	for _, p := range []string{"https://", "http://", "https//", "http//", "https:", "http:"} {
+		if len(h) >= len(p) && strings.EqualFold(h[:len(p)], p) {
+			h = h[len(p):]
+			break
+		}
+	}
+	h = strings.TrimLeft(h, "/")
+	if i := strings.Index(h, "/-/"); i >= 0 { // вставили ссылку на страницу GitLab
+		h = h[:i]
+	}
+	for strings.Contains(h, "//") {
+		h = strings.ReplaceAll(h, "//", "/")
+	}
+	h = strings.TrimRight(h, "/")
+	if i := strings.Index(h, "/"); i >= 0 {
+		return strings.ToLower(h[:i]) + h[i:] // домен — в нижнем регистре, путь — как есть
+	}
+	return strings.ToLower(h)
+}
+
+func normalizeHost(h string) string { return NormalizeHost(h) }
+
+// Domain — только домен (без подпапки): для SSH, сравнения с remote и т.п.
+func (a Account) Domain() string {
+	if i := strings.Index(a.Host, "/"); i >= 0 {
+		return a.Host[:i]
+	}
+	return a.Host
+}
+
+// Fix нормализует адрес и подставляет сайт по умолчанию.
+func (a Account) Fix() Account {
+	a.Host = NormalizeHost(a.Host)
+	if a.Host == "" {
+		a.Host = map[string]string{"github": "github.com", "gitlab": "gitlab.com"}[a.Provider]
+	}
+	return a
 }
 
 // GenerateKey создаёт ed25519-ключ в ~/.ssh/infra_<id> и возвращает путь и публичную часть.

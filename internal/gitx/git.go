@@ -59,11 +59,12 @@ func AccountEnv(a *Account, token string) []string {
 		env = append(env, "GIT_AUTHOR_EMAIL="+a.Email, "GIT_COMMITTER_EMAIL="+a.Email)
 	}
 	var cfg [][2]string
-	host := a.Host
+	acc := a.Fix()
+	host, domain := acc.Host, acc.Domain() // host может быть "домен/подпапка"
 	if a.GitAuth == "ssh" && a.SSHKey != "" {
 		key := strings.ReplaceAll(a.SSHKey, `\`, "/")
 		env = append(env, fmt.Sprintf(`GIT_SSH_COMMAND=ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new`, key))
-		cfg = append(cfg, [2]string{"url.git@" + host + ":.insteadOf", "https://" + host + "/"})
+		cfg = append(cfg, [2]string{"url.git@" + domain + ":.insteadOf", "https://" + host + "/"})
 	} else if token != "" {
 		user := "x-access-token"
 		if a.Provider == "gitlab" {
@@ -73,9 +74,9 @@ func AccountEnv(a *Account, token string) []string {
 		cfg = append(cfg,
 			// не даём Git Credential Manager подставить другой аккаунт — только для хоста аккаунта,
 			// чтобы вход на другие сайты в терминалах продолжал работать
-			[2]string{"credential.https://" + host + ".helper", ""},
+			[2]string{"credential.https://" + domain + ".helper", ""},
 			[2]string{"http.https://" + host + "/.extraheader", "AUTHORIZATION: basic " + auth},
-			[2]string{"url.https://" + host + "/.insteadOf", "git@" + host + ":"},
+			[2]string{"url.https://" + host + "/.insteadOf", "git@" + domain + ":"},
 		)
 	}
 	env = append(env, fmt.Sprintf("GIT_CONFIG_COUNT=%d", len(cfg)))

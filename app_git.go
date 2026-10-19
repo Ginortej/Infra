@@ -83,20 +83,14 @@ func (a *App) GitVerify(acc gitx.Account, token string) (gitx.Profile, error) {
 	if token == "" && acc.ID != "" {
 		token = a.git.Token(acc.ID)
 	}
-	if acc.Host == "" {
-		acc.Host = map[string]string{"github": "github.com", "gitlab": "gitlab.com"}[acc.Provider]
-	}
-	return gitx.Verify(context.Background(), acc, token)
+	return gitx.Verify(context.Background(), acc.Fix(), token)
 }
 
 func (a *App) GitTestSSH(acc gitx.Account) (string, error) {
 	if acc.SSHKey == "" {
 		return "", errors.New("не указан SSH-ключ")
 	}
-	if acc.Host == "" {
-		acc.Host = map[string]string{"github": "github.com", "gitlab": "gitlab.com"}[acc.Provider]
-	}
-	return gitx.TestSSH(context.Background(), acc)
+	return gitx.TestSSH(context.Background(), acc.Fix())
 }
 
 type KeyInfo struct {
@@ -132,9 +126,6 @@ type GitLinks struct {
 }
 
 func (a *App) GitLinks(acc gitx.Account) GitLinks {
-	if acc.Host == "" {
-		acc.Host = map[string]string{"github": "github.com", "gitlab": "gitlab.com"}[acc.Provider]
-	}
 	return GitLinks{gitx.TokenURL(acc), gitx.KeysURL(acc)}
 }
 
@@ -257,7 +248,7 @@ func (a *App) guessAccount(st gitx.Status) string {
 	}
 	var found []string
 	for _, acc := range a.git.List() {
-		if acc.Host == host {
+		if acc.Domain() == host {
 			found = append(found, acc.ID)
 		}
 	}
@@ -265,7 +256,7 @@ func (a *App) guessAccount(st gitx.Status) string {
 		return found[0]
 	}
 	if d := a.gitDefault(); d != "" {
-		if acc, err := a.git.Get(d); err == nil && acc.Host == host {
+		if acc, err := a.git.Get(d); err == nil && acc.Domain() == host {
 			return d
 		}
 	}

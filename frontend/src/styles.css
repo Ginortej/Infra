@@ -552,3 +552,12 @@ select { cursor: pointer; }
 .seg button.on { background: var(--accent-dim); color: var(--accent); }
 .ap-foot { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
 .set-r .appearance { max-width: 640px; }
+
+/* скрытие левой панели */
+.side-toggle { -webkit-app-region: no-drag; --wails-draggable: no-drag; width: 28px; height: 26px; display: grid; place-items: center; border-radius: var(--radius); color: var(--text-3); margin-right: 2px; }
+.side-toggle:hover { background: var(--bg-hover); color: var(--text); }
+.side-toggle svg { width: 16px; height: 16px; }
+body.sidebar-hidden .sidebar, body.sidebar-hidden .resizer { display: none; }
+body.sidebar-hidden .side-toggle { color: var(--accent); }
+body.sidebar-hidden .titlebar-left { width: auto; }
+body.no-vault .side-toggle { display: none; }

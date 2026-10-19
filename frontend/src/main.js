@@ -491,10 +491,25 @@ $("#paletteBackdrop").addEventListener("mousedown", (e) => { if (e.target.id ===
 $("#ribbon").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
-  if (b.dataset.panel) { S.panel = b.dataset.panel; filter = ""; store.set("panel", S.panel); renderSidebar(); }
+  if (b.dataset.panel) {
+    // клик по активному разделу — свернуть/развернуть панель (как в Obsidian)
+    if (b.dataset.panel === S.panel) return toggleSidebar();
+    S.panel = b.dataset.panel; filter = ""; store.set("panel", S.panel);
+    toggleSidebar(true);
+    renderSidebar();
+  }
   if (b.dataset.action === "settings") addTab(settingsTab());
 });
 $("#openPalette").onclick = () => palette();
+$("#sideToggle").onclick = () => toggleSidebar();
+
+// ---------- Скрытие левой панели ----------
+function toggleSidebar(show) {
+  const hidden = show === undefined ? !document.body.classList.contains("sidebar-hidden") : !show;
+  document.body.classList.toggle("sidebar-hidden", hidden);
+  store.set("sidebarHidden", hidden);
+}
+toggleSidebar(!store.get("sidebarHidden", false));
 $("#vaultBtn").onclick = (e) => S.state?.vault && vaultMenu(e.currentTarget);
 $("#winMin").onclick = win.minimise;
 $("#winMax").onclick = win.toggleMax;
@@ -508,6 +523,7 @@ document.addEventListener("keydown", (e) => {
   let handled = true;
   const cur = S.tabs.find((t) => t.id === S.active);
   if (k === "KeyP") palette();
+  else if (k === "KeyB" && !e.shiftKey) toggleSidebar();
   else if (k === "KeyF" && e.shiftKey && cur?.find) cur.find();
   else if (k === "KeyK" && e.shiftKey && cur?.clear) cur.clear();
   else if (k === "Equal" || k === "NumpadAdd") zoom(1);

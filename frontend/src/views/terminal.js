@@ -43,6 +43,10 @@ export function makeXterm(opts = {}) {
 export function clipboardKeys(term, host) {
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== "keydown") return true;
+    // Ctrl+A — выделить весь вывод (в оболочку не отправляется; начало строки — клавиша Home)
+    if (e.ctrlKey && !e.altKey && !e.shiftKey && e.code === "KeyA") {
+      e.preventDefault(); term.selectAll(); return false;
+    }
     if (e.ctrlKey && !e.altKey && !e.shiftKey && e.code === "KeyC" && term.hasSelection()) {
       navigator.clipboard.writeText(term.getSelection()); term.clearSelection(); return false;
     }
@@ -186,6 +190,7 @@ export function terminalTab(spec) {
 
   function moreMenu(anchor) {
     menu(anchor, [
+      { icon: I.copy, label: "Выделить всё", meta: "Ctrl+A", onClick: () => { xt.term.selectAll(); xt.term.focus(); } },
       { icon: I.copy, label: "Копировать весь вывод", onClick: copyAll },
       { icon: I.eraser, label: "Очистить экран", meta: "Ctrl+Shift+K", onClick: () => xt.term.clear() },
       { icon: I.refresh, label: "Перезапустить сессию", onClick: () => connect(true, "── перезапуск…") },

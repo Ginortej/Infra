@@ -48,6 +48,7 @@ export async function quickAccountMenu(anchor, tab) {
     await api.GitSetDefault(id);
     S.state = await api.GetState();
     app.renderStatus();
+    S.tabs.forEach((t) => t.type === "term" && t.renderHead?.());
     const a = accById(id);
     toast(a ? `${I.check} По умолчанию: <b>${esc(a.label)}</b>. Новые терминалы будут работать от него` : "Аккаунт по умолчанию снят");
   };

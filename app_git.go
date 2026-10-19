@@ -63,9 +63,11 @@ func (a *App) GitSetDefault(id string) error {
 	return vault.SaveSettings(s)
 }
 
-// defaultAccountEnv — окружение аккаунта по умолчанию для терминалов.
-func (a *App) defaultAccountEnv() []string {
-	id := a.gitDefault()
+// accountEnv — окружение git-аккаунта для терминала ("@default" — аккаунт по умолчанию).
+func (a *App) accountEnv(id string) []string {
+	if id == "@default" {
+		id = a.gitDefault()
+	}
 	if id == "" {
 		return nil
 	}

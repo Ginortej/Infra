@@ -11,6 +11,7 @@ import { S, app, serverById, vpnRunning } from "../core.js";
 import { h, esc, I, menu, popover, closeMenu, shellIcon, b64bytes, toast } from "../ui.js";
 import { askPassword } from "../dialogs.js";
 import { xtermOptions, onPrefs, appearancePanel, zoom, currentTheme } from "../termprefs.js";
+import { G, loadGit, accountForm } from "./git.js";
 
 // Создаёт xterm с текущим оформлением; оформление меняется на лету для всех терминалов.
 export function makeXterm(opts = {}) {
@@ -130,6 +131,12 @@ export function terminalTab(spec) {
   tab.xt = xt;
   let opened = false;
 
+  // git-аккаунт терминала: undefined — по умолчанию, "" — системный git, id — конкретный
+  tab.git = spec.git;
+  tab.gitUsed = null; // с каким аккаунтом реально запущена сессия
+  const effectiveGit = () => (tab.git === undefined ? S.state?.settings?.gitDefault || "" : tab.git);
+  const gitIcon = (p) => (p === "gitlab" ? I.gitlab : I.github);
+
   const effectiveVpn = () => {
     if (spec.kind === "ssh" && tab.vpn === undefined) return serverById(spec.server)?.vpn || "";
     return tab.vpn || "";
@@ -152,7 +159,7 @@ export function terminalTab(spec) {
         : `<button class="chip" data-shell>${shellIcon(sh?.kind)}${esc(sh?.name || spec.shell)} ${I.chev}</button><span class="dim mono os-title">${esc(tab.osTitle)}</span>`}</div>
       <div class="spacer"></div>
       ${tab.dead ? `<button class="btn small" data-reconnect>${I.refresh}Переподключиться</button>` : ""}
-      ${spec.kind === "ssh" ? `<button class="chip" data-sftp>${I.folder}Файлы</button>` : ""}
+      ${spec.kind === "ssh" ? `<button class="chip" data-sftp>${I.folder}Файлы</button>` : gitChip()}
       <button class="chip" data-vpn title="Через какой VPN идёт трафик этой вкладки">
         <span class="dot ${v ? (vpnRunning(v) ? "ok" : "warn") : ""}"></span>${v ? esc(v) : "напрямую"} ${I.chev}
       </button>
@@ -161,6 +168,7 @@ export function terminalTab(spec) {
       <button class="icon-btn" data-look title="Оформление терминала">${I.palette}</button>
       <button class="icon-btn" data-more title="Ещё">${I.dots}</button>`;
     head.querySelector("[data-vpn]").onclick = (e) => vpnMenu(e.currentTarget);
+    head.querySelector("[data-git]")?.addEventListener("click", (e) => gitMenu(e.currentTarget));
     head.querySelector("[data-sftp]")?.addEventListener("click", () => app.openSftp(spec.server));
     head.querySelector("[data-reconnect]")?.addEventListener("click", () => connect(true));
     head.querySelector("[data-shell]")?.addEventListener("click", (e) => shellMenu(e.currentTarget));
@@ -168,6 +176,31 @@ export function terminalTab(spec) {
     head.querySelector("[data-look]").onclick = (e) => popover(e.currentTarget, appearancePanel(), { width: 392 });
     head.querySelector("[data-more]").onclick = (e) => moreMenu(e.currentTarget);
   };
+
+  function gitChip() {
+    if (!G.loaded) { loadGit().then(() => tab.renderHead()).catch(() => {}); return ""; }
+    const used = tab.gitUsed ?? effectiveGit();
+    const a = G.accounts.find((x) => x.id === used);
+    const stale = tab.gitUsed !== null && tab.gitUsed !== effectiveGit();
+    const title = a ? `git в этой вкладке коммитит и пушит от ${a.label} (${a.username}@${a.host})` : "git в этой вкладке — системный (без аккаунта Infra)";
+    return `<button class="chip git-chip" data-git title="${esc(title)}">
+      ${a ? `<span class="prov ${a.provider}">${gitIcon(a.provider)}</span>${esc(a.label || a.username)}` : `${I.branch}<span class="dim">git: системный</span>`}
+      ${stale ? `<span class="dot warn" title="Аккаунт по умолчанию изменился — перезапусти сессию"></span>` : ""} ${I.chev}</button>`;
+  }
+
+  function gitMenu(anchor) {
+    const used = tab.gitUsed ?? effectiveGit();
+    const def = G.accounts.find((x) => x.id === (S.state?.settings?.gitDefault || ""));
+    const pick = (v, label) => { tab.git = v; connect(true, `── git-аккаунт: ${label}, перезапуск сессии…`); };
+    menu(anchor, [
+      { header: "git в этой вкладке пушит от" },
+      ...G.accounts.map((a) => ({ icon: gitIcon(a.provider), label: a.label || a.username, meta: `${a.username}@${a.host}`, checked: a.id === used, onClick: () => pick(a.id, a.label) })),
+      { icon: I.branch, label: "Системный git", meta: "без аккаунта", checked: !used, onClick: () => pick("", "системный git") },
+      { sep: true },
+      { icon: I.check, label: def ? `Как по умолчанию (${def.label})` : "Как по умолчанию", checked: tab.git === undefined, onClick: () => pick(undefined, def ? def.label : "по умолчанию") },
+      { icon: I.plus, label: "Добавить аккаунт…", onClick: () => accountForm() },
+    ], { align: "right", width: 300 });
+  }
 
   function vpnMenu(anchor) {
     const cur = effectiveVpn();
@@ -195,7 +228,7 @@ export function terminalTab(spec) {
       { icon: I.eraser, label: "Очистить экран", meta: "Ctrl+Shift+K", onClick: () => xt.term.clear() },
       { icon: I.refresh, label: "Перезапустить сессию", onClick: () => connect(true, "── перезапуск…") },
       { sep: true },
-      { icon: I.term, label: "Дублировать вкладку", onClick: () => app.addTab(terminalTab({ ...spec, vpn: tab.vpn })) },
+      { icon: I.term, label: "Дублировать вкладку", onClick: () => app.addTab(terminalTab({ ...spec, vpn: tab.vpn, git: tab.git })) },
       { icon: I.palette, label: "Оформление…", onClick: () => popover(head.querySelector("[data-look]"), appearancePanel(), { width: 392 }) },
     ], { align: "right", width: 250 });
   }
@@ -230,7 +263,8 @@ export function terminalTab(spec) {
     try {
       tab.sid = spec.kind === "ssh"
         ? await api.TermOpenSSH(spec.server, tab.vpn === undefined ? "@default" : tab.vpn, cols, rows)
-        : spec.cwd ? await api.TermOpenLocalAt(spec.shell, tab.vpn || "", spec.cwd, cols, rows) : await api.TermOpenLocal(spec.shell, tab.vpn || "", cols, rows);
+        : await api.TermOpenLocalWith(spec.shell, tab.vpn || "", spec.cwd || "", tab.git === undefined ? "@default" : tab.git, cols, rows);
+      if (spec.kind !== "ssh") tab.gitUsed = effectiveGit();
       register(tab.sid, tab);
       tab.renderHead();
       app.renderTabs();

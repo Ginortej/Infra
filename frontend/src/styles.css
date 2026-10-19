@@ -682,3 +682,6 @@ svg.fill { fill: currentColor; stroke: none; }
 /* кнопки в пустых состояниях панели — в одну строку, по центру */
 .side-empty .btn { white-space: nowrap; margin-top: 10px; max-width: 100%; justify-content: center; }
 .side-empty .btn svg { width: 13px; height: 13px; }
+
+.git-chip .prov svg { width: 13px; height: 13px; }
+.git-chip .dot.warn { margin-left: 2px; }

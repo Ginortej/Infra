@@ -39,6 +39,11 @@ func (a *App) TermOpenLocal(shellID, vpnID string, cols, rows int) (string, erro
 
 // TermOpenLocalAt — то же, но в указанной папке.
 func (a *App) TermOpenLocalAt(shellID, vpnID, cwd string, cols, rows int) (string, error) {
+	return a.TermOpenLocalWith(shellID, vpnID, cwd, "@default", cols, rows)
+}
+
+// TermOpenLocalWith — с выбором git-аккаунта: "@default" — по умолчанию, "" — системный git, id — конкретный.
+func (a *App) TermOpenLocalWith(shellID, vpnID, cwd, gitAccount string, cols, rows int) (string, error) {
 	var sh *shells.Shell
 	for _, s := range a.ListShells() {
 		if s.ID == shellID {
@@ -52,7 +57,7 @@ func (a *App) TermOpenLocalAt(shellID, vpnID, cwd string, cols, rows int) (strin
 	}
 	env := append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
 	if sh.Kind != "wsl" {
-		env = append(env, a.defaultAccountEnv()...) // git в терминале — от аккаунта по умолчанию
+		env = append(env, a.accountEnv(gitAccount)...) // git в этом терминале — от выбранного аккаунта
 	}
 	if vpnID != "" {
 		pe, err := a.vpn.ProxyEnv(vpnID)

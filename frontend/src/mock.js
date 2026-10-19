@@ -192,6 +192,7 @@ export function createMock() {
     GitClone: () => job("git clone"),
     GitCreateRemote: () => job("Создание репозитория"),
     TermOpenLocalAt: (...a) => api.TermOpenLocal(a[0], a[1]),
+    TermOpenLocalWith: (...a) => api.TermOpenLocal(a[0], a[1]),
   };
   return { api, on: (ev, fn) => ((listeners[ev] ??= []).push(fn), () => {}) };
 }

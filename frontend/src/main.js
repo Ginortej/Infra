@@ -9,6 +9,7 @@ import { labTab } from "./views/lab.js";
 import { settingsTab } from "./views/settings.js";
 import { openRunDialog, onRunOut, onRunHost, onRunDone, onRunOpened, openRunTab } from "./views/run.js";
 import { serverForm } from "./dialogs.js";
+import { zoom } from "./termprefs.js";
 
 let seq = 1;
 const collapsed = new Set(store.get("collapsed", []));
@@ -282,9 +283,10 @@ function closeTab(id) {
 
 function renderTabs() {
   $("#tabbar").innerHTML = S.tabs.map((t) => `
-    <div class="tab${t.id === S.active ? " active" : ""}" data-tab="${t.id}" title="${esc(t.path || t.title)}">
+    <div class="tab${t.id === S.active ? " active" : ""}${t.type === "term" ? " is-term" : ""}" data-tab="${t.id}" title="${esc(t.path || t.title)}">
       ${(t.icon || I.file).replace("<svg", '<svg class="ico"')}
       <span class="title">${esc(t.title)}</span>
+      ${t.badge ? `<span class="tab-badge ${t.badge}"></span>` : ""}
       <button class="close" data-close="${t.id}">${I.x}</button>
     </div>`).join("") +
     `<div class="tab-new-wrap"><button class="tab-new" title="Новый терминал (Ctrl+T)" data-newterm>${I.plus}</button><button class="tab-new narrow" title="Выбрать оболочку" data-shellmenu>${I.chev}</button></div>`;
@@ -500,11 +502,17 @@ $("#winClose").onclick = win.close;
 $(".titlebar").addEventListener("dblclick", (e) => { if (!e.target.closest("button")) win.toggleMax(); });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && document.querySelector(".menu")) { closeMenu(); return; }
+  if (e.key === "Escape" && document.querySelector(".menu, .popover-panel")) { closeMenu(); return; }
   if (!S.state?.vault || !e.ctrlKey) return;
   const k = e.code;
   let handled = true;
+  const cur = S.tabs.find((t) => t.id === S.active);
   if (k === "KeyP") palette();
+  else if (k === "KeyF" && e.shiftKey && cur?.find) cur.find();
+  else if (k === "KeyK" && e.shiftKey && cur?.clear) cur.clear();
+  else if (k === "Equal" || k === "NumpadAdd") zoom(1);
+  else if (k === "Minus" || k === "NumpadSubtract") zoom(-1);
+  else if (k === "Digit0" || k === "Numpad0") zoom(0);
   else if (k === "KeyT" && e.shiftKey) shellMenu($(".tab-new-wrap"));
   else if (k === "KeyT") newTerminal();
   else if (k === "KeyW") S.active && closeTab(S.active);

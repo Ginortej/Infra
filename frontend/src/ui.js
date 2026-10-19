@@ -39,6 +39,10 @@ export const I = {
   warn: svg('<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>'),
   vault: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M12 9V7M12 17v-2"/>'),
   dots: svg('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'),
+  palette: svg('<path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="14.5" cy="7" r="1"/>'),
+  arrowDown: svg('<path d="M12 5v14M6 13l6 6 6-6"/>'),
+  copy: svg('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
+  eraser: svg('<path d="m7 21-4-4 10-10 8 8-6 6H7zM14 21h7"/>'),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
 };
 
@@ -82,7 +86,7 @@ export function menu(anchor, items, { align = "left", width = 240 } = {}) {
   m._off = () => document.removeEventListener("mousedown", outside);
   return m;
 }
-export function closeMenu() { $$(".menu").forEach((m) => { m._off?.(); m.remove(); }); }
+export function closeMenu() { $$(".menu, .popover-panel").forEach((m) => { m._off?.(); m.remove(); }); }
 
 // ---------- Модальное окно ----------
 // Возвращает {el, close}. body — HTML или элемент; buttons: [{label, primary, danger, onClick -> false чтобы не закрывать}]
@@ -136,3 +140,23 @@ export const store = {
   get(k, d) { try { const v = localStorage.getItem("infra." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem("infra." + k, JSON.stringify(v)); } catch {} },
 };
+
+// ---------- Всплывающая панель (как меню, но с произвольным содержимым) ----------
+export function popover(anchor, content, { align = "right", width = 360 } = {}) {
+  closeMenu();
+  const r = anchor.getBoundingClientRect();
+  const m = h(`<div class="popover-panel" style="width:${width}px"></div>`);
+  m.append(content);
+  document.body.append(m);
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  let left = align === "right" ? r.right - mw : r.left;
+  left = Math.max(8, Math.min(left, innerWidth - mw - 8));
+  let top = r.bottom + 6;
+  if (top + mh > innerHeight - 8) top = Math.max(8, innerHeight - mh - 8);
+  m.style.left = left + "px";
+  m.style.top = top + "px";
+  setTimeout(() => document.addEventListener("mousedown", outside));
+  function outside(e) { if (!m.contains(e.target) && !anchor.contains(e.target)) closeMenu(); }
+  m._off = () => document.removeEventListener("mousedown", outside);
+  return m;
+}

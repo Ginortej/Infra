@@ -2,6 +2,7 @@
 import { api, errText } from "../api.js";
 import { S, app } from "../core.js";
 import { h, esc, I, toast, shellIcon } from "../ui.js";
+import { appearancePanel } from "../termprefs.js";
 
 export function settingsTab() {
   const tab = { type: "settings", key: "settings", icon: I.gear, title: "Настройки" };
@@ -34,6 +35,8 @@ export function settingsTab() {
           <div class="set-r"><select data-k="defaultShell">${S.shells.map((s) => `<option value="${esc(s.id)}" ${s.id === st.defaultShell ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>
           <div class="shell-list">${S.shells.map((s) => `<div>${shellIcon(s.kind)}<b>${esc(s.name)}</b><span class="mono dim small">${esc(s.path)}</span></div>`).join("")}</div>
           <button class="btn small" data-rescan>${I.refresh}Найти заново</button></div></div>
+        <div class="set-row"><div class="set-l"><div>Оформление</div><div class="dim small">Тема, шрифт и курсор — для всех вкладок сразу. Также доступно кнопкой ${I.palette} в шапке терминала</div></div>
+          <div class="set-r" data-appearance></div></div>
       </section>
       <section>
         <h3>Скрипты и Ansible</h3>
@@ -51,6 +54,7 @@ export function settingsTab() {
       </section>
       <div class="set-foot"><span class="dim small">Infra ${esc(S.state.version)}${api.isMock ? " · тестовый режим (браузер)" : ""}</span><span class="spacer"></span><button class="btn primary" data-save>Сохранить</button></div>`;
 
+    body.querySelector("[data-appearance]").append(appearancePanel());
     body.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = async () => {
       const input = body.querySelector(`[data-k="${b.dataset.pick}"]`);
       const p = b.dataset.kind === "folder" ? await api.PickFolder("Выбери папку", input.value) : await api.PickFile("Выбери программу", input.value);

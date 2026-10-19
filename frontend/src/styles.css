@@ -468,3 +468,87 @@ select { cursor: pointer; }
 .win-controls { margin-left: auto; }
 .side-filter input { padding-left: 28px !important; height: 28px; }
 .view-head .editor-status { position: static; display: flex; }
+
+/* =====================================================================
+   Терминал v2
+   ===================================================================== */
+/* отступ ставим на .xterm: FitAddon вычитает его при расчёте строк,
+   поэтому последняя строка больше не уходит под край окна */
+.term-wrap { position: relative; flex: 1; min-height: 0; background: var(--term-bg, #141517); transition: background .2s; }
+.term-host { position: absolute; inset: 0; padding: 0 !important; background: var(--term-bg, #141517) !important; overflow: hidden; }
+.term-host .xterm { height: 100%; padding: var(--term-pad-y, 14px) 0 var(--term-pad-y, 14px) var(--term-pad-x, 18px); }
+.term-host .xterm-viewport { background: var(--term-bg, #141517) !important; }
+.term-host .xterm-viewport::-webkit-scrollbar { width: 10px; }
+.term-host .xterm-viewport::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--term-fg) 18%, transparent); border: 3px solid transparent; background-clip: content-box; border-radius: 10px; }
+.term-host .xterm-viewport::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--term-fg) 32%, transparent); background-clip: content-box; }
+.term-host .xterm .xterm-screen { cursor: text; }
+
+/* шапка терминала */
+.term-head { gap: 8px; }
+.term-head .crumbs { min-width: 0; }
+.term-head .crumbs .dim { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+.os-title { margin-left: 10px; font-size: 11.5px; }
+.head-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+.term-head .icon-btn { width: 28px; height: 28px; }
+.term-head .icon-btn svg { width: 15px; height: 15px; }
+.conn { margin-left: 10px; font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--border); white-space: nowrap; }
+.conn.on { color: var(--ok); border-color: rgba(108,197,154,.3); background: rgba(108,197,154,.07); }
+.conn.off { color: var(--err); border-color: rgba(229,115,115,.3); background: rgba(229,115,115,.07); }
+.conn.wait { color: var(--text-3); }
+
+/* поиск по выводу */
+.term-find { position: absolute; top: 10px; right: 22px; z-index: 5; display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 10px; background: #25262b; border: 1px solid #3a3c43; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+.term-find[hidden] { display: none; }
+.term-find > svg { width: 14px; height: 14px; color: var(--text-3); }
+.term-find input { width: 220px !important; height: 26px !important; border: 0 !important; background: transparent !important; padding: 0 4px !important; font-family: var(--mono); font-size: 12.5px; }
+.term-find .tf-count { min-width: 52px; text-align: right; margin-right: 4px; }
+.term-find .icon-btn { width: 26px; height: 26px; font: 600 11px var(--font); }
+.term-find .icon-btn.on { color: var(--accent); background: var(--accent-dim); }
+.term-find [data-f="prev"] svg { width: 13px; height: 13px; }
+
+/* кнопка «вниз» */
+.term-bottom { position: absolute; right: 22px; bottom: 18px; z-index: 4; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #2a2b31; border: 1px solid #3c3e46; color: var(--text); box-shadow: 0 6px 18px rgba(0,0,0,.4); animation: up .15s ease-out; }
+.term-bottom:hover { background: #33353c; }
+.term-bottom[hidden] { display: none; }
+
+/* звонок (\a) — мягкая вспышка рамки */
+.term-view.bell .term-wrap { animation: bell .5s ease-out; }
+@keyframes bell { 0% { box-shadow: inset 0 0 0 2px var(--term-accent); } 100% { box-shadow: inset 0 0 0 2px transparent; } }
+
+/* вкладки: индикаторы */
+.tab-badge { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.tab-badge.activity { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+.tab-badge.dead { background: var(--err); }
+.tab.is-term.active::before { content: ""; position: absolute; left: 10px; right: 10px; top: 0; height: 2px; border-radius: 0 0 2px 2px; background: var(--term-accent, var(--accent)); }
+.tab:hover .tab-badge + .close, .tab.active .tab-badge + .close { margin-left: -2px; }
+
+/* всплывающая панель */
+.popover-panel { position: fixed; z-index: 50; padding: 14px 16px 12px; background: #232429; border: 1px solid #383a41; border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,.5); max-height: 86vh; overflow-y: auto; animation: up .12s ease-out; }
+
+/* панель «Оформление» */
+.appearance { display: flex; flex-direction: column; gap: 10px; }
+.ap-sec { font-size: 11px; font-weight: 600; letter-spacing: .7px; text-transform: uppercase; color: var(--text-3); }
+.theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; }
+.set-r .theme-grid { grid-template-columns: repeat(4, minmax(0, 150px)); }
+.theme-card { padding: 0; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-3); overflow: hidden; text-align: left; transition: border-color .12s, transform .12s; }
+.theme-card:hover { border-color: #4a4d58; transform: translateY(-1px); }
+.theme-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.tc-prev { background: var(--bg); color: var(--fg); padding: 7px 8px 6px; font-size: 9.5px; line-height: 1.5; white-space: nowrap; overflow: hidden; }
+.tc-sw { display: flex; gap: 3px; margin-top: 4px; }
+.tc-sw i { width: 9px; height: 9px; border-radius: 2px; }
+.tc-name { display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; font-size: 11.5px; color: var(--text-2); }
+.tc-name svg { width: 12px; height: 12px; color: var(--accent); }
+.ap-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 30px; color: var(--text-2); }
+.ap-row select { width: 170px !important; height: 28px !important; }
+.ap-row.check input { width: 15px; height: 15px; accent-color: var(--accent); }
+.stepper { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.stepper button { width: 30px; height: 26px; color: var(--text-2); font-size: 15px; }
+.stepper button:hover { background: var(--bg-hover); color: var(--text); }
+.stepper b { min-width: 34px; text-align: center; font: 600 12px var(--mono); color: var(--text); }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { height: 26px; padding: 0 10px; font-size: 12px; color: var(--text-2); border-left: 1px solid var(--border); white-space: nowrap; }
+.seg button:first-child { border-left: 0; }
+.seg button:hover { background: var(--bg-hover); color: var(--text); }
+.seg button.on { background: var(--accent-dim); color: var(--accent); }
+.ap-foot { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 2px; }
+.set-r .appearance { max-width: 640px; }

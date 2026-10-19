@@ -240,11 +240,11 @@ export function openRunTab(runId, o) {
 
   let opened = false;
   tab.onShow = () => {
-    if (!opened) { opened = true; xt.term.open(host); clipboardKeys(xt.term, host); }
+    if (!opened) { opened = true; xt.term.open(host); xt.enableWebgl(); clipboardKeys(xt.term, host); }
     requestAnimationFrame(() => { try { xt.fit.fit(); } catch {} });
   };
   new ResizeObserver(() => requestAnimationFrame(() => { if (el.offsetParent) try { xt.fit.fit(); } catch {} })).observe(host);
-  tab.onClose = () => { if (!finished) api.CancelRun(runId); runs.delete(runId); xt.term.dispose(); };
+  tab.onClose = () => { if (!finished) api.CancelRun(runId); runs.delete(runId); xt.dispose(); };
 
   runs.set(runId, tab);
   renderHosts();

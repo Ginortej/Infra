@@ -1015,3 +1015,28 @@ body.no-vault .chat { display: none; }
 .hub-card .row > b { white-space: nowrap; }
 .hub-card .row > .dim { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hub-card .row .btn { flex-shrink: 0; }
+
+/* маркет и настройки ИИ в левой панели */
+body[data-panel="market"] .sidebar, body[data-panel="aiset"] .sidebar { width: max(var(--sidebar-w), 380px); max-width: 560px; }
+.side-mount { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.tabview.in-side { display: flex; flex: 1; min-height: 0; }
+.in-side .mk-head { padding: 2px 12px 10px; }
+.in-side .mk-title { gap: 8px; }
+.in-side .mk-title h2 { display: none; }
+.in-side .mk-ollama { margin-left: auto; }
+.in-side .mk-bar { margin-top: 10px; gap: 8px; }
+.in-side .mk-search { margin-left: 0; width: 100%; }
+.in-side .mk-body { padding: 12px 10px 30px; }
+.in-side .mk-grid { grid-template-columns: 1fr; gap: 10px; }
+.in-side .mk-card, .in-side .hub-card, .in-side .hub-stats > div, .in-side .hub-log { background: var(--bg); }
+.in-side .mk-custom { flex-wrap: wrap; }
+.in-side .mk-custom input { width: auto; flex: 1; }
+.in-side .mk-grid + .mk-sec-h { margin-top: 20px; }
+.in-side .hub { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+.in-side .hub-nav { flex-direction: row; flex-wrap: wrap; gap: 4px; padding: 0 10px 8px; border-right: 0; border-bottom: 1px solid var(--border); background: none; }
+.in-side .hub-nav button { height: 26px; font-size: 12px; padding: 0 8px; }
+.in-side .hub-nav button svg { width: 13px; height: 13px; }
+.in-side .hub-main { padding: 14px 12px 30px; max-width: none; }
+.in-side .hub-main h2 { font-size: 14px; }
+.in-side .hub-stats { grid-template-columns: 1fr 1fr; }
+.in-side .hub-card .row { flex-wrap: wrap; }

@@ -79,7 +79,8 @@ export function refreshAIViews(light = false) {
   clearTimeout(rt);
   rt = setTimeout(() => {
     if (S.panel === "ai") app.renderSidebar?.();
-    S.tabs.forEach((t) => (t.type === "market" || t.type === "aihub") && t.refresh?.(light));
+    if (S.panel === "market") side.market?.refresh(light);
+    if (S.panel === "aiset") side.aiset?.refresh(light);
     app.chatRefreshAgents?.();
   }, light ? 60 : 0);
 }
@@ -187,13 +188,29 @@ async function knowInit() {
 // ============================================================
 //  Маркет
 // ============================================================
+// Маркет и настройки ИИ живут в левой панели (свои иконки на ленте), а не во вкладках.
+const side = { market: null, aiset: null };
+export function mountMarket(box) {
+  side.market ??= marketTab(store.get("mk.sec", "models"));
+  side.market.el.classList.add("shown", "in-side");
+  box.append(side.market.el);
+  side.market.onShow();
+}
+export function mountHub(box) {
+  side.aiset ??= aiHubTab(store.get("hub.sec", "mcp"));
+  side.aiset.el.classList.add("shown", "in-side");
+  box.append(side.aiset.el);
+  side.aiset.onShow();
+}
 export function openMarket(section = "models") {
-  const ex = S.tabs.find((t) => t.key === "market");
-  if (ex) { ex.show(section); app.activate(ex.id); } else app.addTab(marketTab(section));
+  store.set("mk.sec", section);
+  side.market?.show(section);
+  app.showPanel("market");
 }
 export function openHub(section = "mcp") {
-  const ex = S.tabs.find((t) => t.key === "aihub");
-  if (ex) { ex.show(section); app.activate(ex.id); } else app.addTab(aiHubTab(section));
+  store.set("hub.sec", section);
+  side.aiset?.show(section);
+  app.showPanel("aiset");
 }
 const FILTERS = [["all", "Все"], ["tools", "Для агентов"], ["code", "Код"], ["thinking", "Рассуждения"], ["vision", "Зрение"], ["small", "Лёгкие"], ["have", "Установленные"]];
 
@@ -295,7 +312,7 @@ export function marketTab(section = "models") {
   el.addEventListener("click", async (e) => {
     const t = (s) => e.target.closest(s);
     let x;
-    if ((x = t("[data-sec]"))) { sec = x.dataset.sec; return render(); }
+    if ((x = t("[data-sec]"))) { sec = x.dataset.sec; store.set("mk.sec", sec); return render(); }
     if ((x = t("[data-filter]"))) { filter = x.dataset.filter; store.set("mk.filter", filter); return render(); }
     if ((x = t("[data-size]"))) { const [id, tag] = x.dataset.size.split("|"); pick[id] = tag; return renderBody(); }
     if ((x = t("[data-pull]"))) return pull(x.dataset.pull);
@@ -545,7 +562,7 @@ export function aiHubTab(section = "mcp") {
     const t = (s) => e.target.closest(s);
     let x;
     try {
-      if ((x = t("[data-s]"))) { sec = x.dataset.s; return render(); }
+      if ((x = t("[data-s]"))) { sec = x.dataset.s; store.set("hub.sec", sec); return render(); }
       if (t("[data-mcp]")) { A.mcp = await api.MCPSetEnabled(!A.mcp?.running).catch((err) => { toast(esc(errText(err)), "err"); return api.MCPStatus(); }); refreshAIViews(); app.renderStatus?.(); return; }
       if (t("[data-ro]")) { A.mcp = await api.MCPSetReadOnly(!A.mcp?.readOnly); return refreshAIViews(); }
       if ((x = t("[data-copy]"))) { await navigator.clipboard.writeText(A.mcp.configs[+x.dataset.copy].text); return toast(`${I.copy} Скопировано`); }

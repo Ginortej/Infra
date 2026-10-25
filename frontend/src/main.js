@@ -11,7 +11,7 @@ import { openRunDialog, onRunOut, onRunHost, onRunDone, onRunOpened, openRunTab 
 import { serverForm } from "./dialogs.js";
 import { zoom } from "./termprefs.js";
 import { startSysWidget } from "./syswidget.js";
-import { A, loadAI, aiSideHtml, aiSideClick, openMarket, openHub, agentForm } from "./views/ai.js";
+import { A, loadAI, aiSideHtml, aiSideClick, openMarket, openHub, agentForm, mountMarket, mountHub } from "./views/ai.js";
 import { initChat, toggleChat, openChat, chatTabChanged } from "./views/chat.js";
 import { G, loadGit, gitSideHtml, gitSideClick, accountForm, addRepoMenu, cloneDialog, gitTab, gitStatusHtml, quickAccountMenu } from "./views/git.js";
 
@@ -110,7 +110,9 @@ const PANELS = {
   vpn: { title: "VPN", actions: [["Новый профиль", I.plus, () => newFile("vpn/new-profile.yaml", "name: new-profile\ntype: wireguard\nwireguard: vpn/new-profile.conf\nsocks: 10810\n")]] },
   labs: { title: "Лабы", actions: [["Новая лаба", I.plus, () => newFile("labs/new-lab.yaml", null, "labs/example-lab.yaml")]] },
   git: { title: "Git", actions: [["Добавить аккаунт GitHub / GitLab", I.user, () => accountForm()], ["Добавить репозиторий", I.plus, (b) => addRepoMenu(b)], ["Обновить", I.refresh, () => loadGit().then(renderList)]] },
-  ai: { title: "ИИ", actions: [["Чат (Ctrl+J)", I.chat, () => toggleChat()], ["Маркет моделей и агентов", I.store, () => openMarket()], ["Новый агент", I.plus, () => agentForm()], ["Безопасность и MCP", I.shield, () => openHub("knowledge")]] },
+  ai: { title: "ИИ", actions: [["Чат (Ctrl+J)", I.chat, () => toggleChat()], ["Новый агент", I.plus, () => agentForm()]] },
+  market: { title: "Маркет ИИ", mount: mountMarket, actions: [["Обновить", I.refresh, () => loadAI(true).then(renderSidebar)]] },
+  aiset: { title: "Настройки ИИ", mount: mountHub, actions: [["Обновить", I.refresh, () => loadAI(true).then(renderSidebar)]] },
   scripts: { title: "Скрипты", actions: [["Новый bash-скрипт", I.plus, () => newFile("scripts/snippets/new.sh", "#!/usr/bin/env bash\n# выполнится на выбранных серверах\n\nhostname\n")]] },
 };
 
@@ -127,6 +129,15 @@ async function newFile(path, text, copyFrom) {
 function renderSidebar() {
   const P = PANELS[S.panel];
   $$("#ribbon [data-panel]").forEach((b) => b.classList.toggle("active", b.dataset.panel === S.panel));
+  document.body.dataset.panel = S.panel;
+  if (P.mount) {
+    $("#sidebar").innerHTML = `
+      <div class="side-head"><span class="side-title">${P.title}</span><div class="side-actions">${P.actions.map(([t, i], n) => `<button class="icon-btn" title="${t}" data-sa="${n}">${i}</button>`).join("")}</div></div>
+      <div class="side-mount"></div>`;
+    $$("#sidebar [data-sa]").forEach((b) => (b.onclick = () => P.actions[+b.dataset.sa][2](b)));
+    P.mount($("#sidebar .side-mount"));
+    return;
+  }
   $("#sidebar").innerHTML = `
     <div class="side-head"><span class="side-title">${P.title}</span><div class="side-actions">${P.actions.map(([t, i], n) => `<button class="icon-btn" title="${t}" data-sa="${n}">${i}</button>`).join("")}</div></div>
     <div class="side-filter">${I.search}<input placeholder="Фильтр…" spellcheck="false" value="${esc(filter)}"></div>

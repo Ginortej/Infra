@@ -20,6 +20,8 @@ type Settings struct {
 	Parallel     int      `json:"parallel"`
 	GitRepos     []string `json:"gitRepos"`
 	GitDefault   string   `json:"gitDefault"` // аккаунт по умолчанию
+	AIModel      string   `json:"aiModel"`    // модель по умолчанию для ИИ-терминала
+	AICommand    string   `json:"aiCommand"`  // своя команда запуска (не Ollama)
 }
 
 var settingsMu sync.Mutex

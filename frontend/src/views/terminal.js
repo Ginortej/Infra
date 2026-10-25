@@ -95,6 +95,7 @@ export function onTermExit(id, msg) {
   if (!tab) return hold(id, ["exit", msg]);
   sessions.delete(id);
   tab.sid = null;
+  if (tab.onExit?.(msg)) return; // вкладка сама решила, что делать дальше (ИИ: после скачивания — запуск)
   tab.xt.term.write(`\r\n\x1b[90m── ${msg || "сессия завершена"}. Enter — подключиться заново\x1b[0m\r\n`);
   tab.setDead(true);
 }
@@ -104,9 +105,10 @@ export function terminalTab(spec) {
   const tab = {
     type: "term", spec, vpn: spec.vpn, sid: null, dead: false, badge: "", osTitle: "",
     get title() {
+      if (spec.kind === "ai") return "ИИ · " + (spec.model || "модель");
       return spec.kind === "ssh" ? spec.server : (S.shells.find((s) => s.id === spec.shell)?.name || spec.shell);
     },
-    get icon() { return spec.kind === "ssh" ? I.server : shellIcon(S.shells.find((s) => s.id === spec.shell)?.kind); },
+    get icon() { return spec.kind === "ai" ? I.sparkle : spec.kind === "ssh" ? I.server : shellIcon(S.shells.find((s) => s.id === spec.shell)?.kind); },
   };
   const el = h(`<div class="tabview term-view">
     <div class="view-head term-head"></div>
@@ -121,6 +123,7 @@ export function terminalTab(spec) {
         <button class="icon-btn" data-f="close" title="Закрыть (Esc)">${I.x}</button>
       </div>
       <button class="term-bottom" hidden title="Вниз">${I.arrowDown}</button>
+      <div class="ai-setup" hidden></div>
     </div></div>`);
   tab.el = el;
   const head = el.querySelector(".view-head");
@@ -149,6 +152,7 @@ export function terminalTab(spec) {
   };
 
   tab.renderHead = () => {
+    if (spec.kind === "ai") return aiHead();
     const v = effectiveVpn();
     const srv = spec.kind === "ssh" ? serverById(spec.server) : null;
     const sh = S.shells.find((s) => s.id === spec.shell);
@@ -250,6 +254,7 @@ export function terminalTab(spec) {
   }
 
   async function connect(reopen = false, note = "") {
+    if (spec.kind === "ai") return aiConnect(note);
     if (tab.sid) { api.TermClose(tab.sid); sessions.delete(tab.sid); tab.sid = null; }
     if (note) xt.term.write(`\r\n\x1b[90m${note}\x1b[0m\r\n`);
     tab.dead = false;
@@ -280,6 +285,176 @@ export function terminalTab(spec) {
       tab.setDead(true);
     }
   }
+
+  // =================== ИИ-терминал (Ollama) ===================
+  const setup = el.querySelector(".ai-setup");
+  tab.ai = null; // AIStatus
+  const fmtGB = (b) => (b / 1073741824).toFixed(b >= 10 * 1073741824 ? 0 : 1) + " GB";
+  const SUGGEST = [
+    ["llama3.2:3b", "≈2 GB", "быстрая, простые вопросы"],
+    ["qwen2.5-coder:7b", "≈4.7 GB", "код, скрипты, DevOps"],
+    ["gemma3:4b", "≈3.3 GB", "универсальная"],
+    ["deepseek-r1:8b", "≈5.2 GB", "рассуждения, сложные задачи"],
+    ["mistral:7b", "≈4.1 GB", "универсальная"],
+    ["qwen2.5:14b", "≈9 GB", "умнее, нужна видеокарта 12+ GB"],
+  ];
+
+  async function refreshAI() {
+    try { tab.ai = await api.AIStatus(); } catch { tab.ai = null; }
+    if (spec.kind === "ai") aiHead();
+    return tab.ai;
+  }
+
+  function aiHead() {
+    const st = tab.ai;
+    const loaded = st?.loaded?.find((m) => m.name === spec.model);
+    const info = !st ? "" : !st.installed && !st.running ? `<span class="conn off">Ollama не установлена</span>` : !st.running ? `<span class="conn off">Ollama не запущена</span>`
+      : `<span class="dim small">Ollama ${esc(st.version)}${loaded ? ` · в памяти ${fmtGB(loaded.size)}${loaded.sizeVram ? ` (видеокарта ${Math.round(loaded.sizeVram / loaded.size * 100)}%)` : " (CPU)"}` : ""}</span>`;
+    head.innerHTML = `
+      <div class="crumbs"><button class="chip ai-chip" data-aimodel>${I.sparkle}${esc(spec.mode === "custom" ? "своя команда" : spec.model || "выбери модель")} ${I.chev}</button>${info}</div>
+      <div class="spacer"></div>
+      ${tab.dead ? `<button class="btn small" data-reconnect>${I.refresh}Запустить снова</button>` : ""}
+      ${spec.mode !== "custom" && spec.model ? `<button class="btn small" data-ainew title="Начать разговор заново (контекст сбрасывается)">${I.plus}Новый чат</button>
+        <button class="icon-btn" data-aiunload title="Выгрузить модель из памяти (освободить видеопамять)">${I.eject}</button>` : ""}
+      <span class="head-sep"></span>
+      <button class="icon-btn" data-find title="Найти (Ctrl+Shift+F)">${I.search}</button>
+      <button class="icon-btn" data-look title="Оформление терминала">${I.palette}</button>
+      <button class="icon-btn" data-more title="Ещё">${I.dots}</button>`;
+    head.querySelector("[data-aimodel]").onclick = (e) => aiModelMenu(e.currentTarget);
+    head.querySelector("[data-reconnect]")?.addEventListener("click", () => connect(true));
+    head.querySelector("[data-ainew]")?.addEventListener("click", () => connect(true, "── новый чат"));
+    head.querySelector("[data-aiunload]")?.addEventListener("click", async () => {
+      try { await api.AIUnload(spec.model); toast(`${I.eject} ${esc(spec.model)} выгружена из памяти`); } catch (e) { toast(esc(errText(e)), "err"); }
+      refreshAI();
+    });
+    head.querySelector("[data-find]").onclick = () => tab.find();
+    head.querySelector("[data-look]").onclick = (e) => popover(e.currentTarget, appearancePanel(), { width: 392 });
+    head.querySelector("[data-more]").onclick = (e) => moreMenu(e.currentTarget);
+  }
+
+  async function aiModelMenu(anchor) {
+    const st = tab.ai || (await refreshAI());
+    const models = st?.models || [];
+    menu(anchor, [
+      { header: models.length ? "Модели Ollama" : "Моделей пока нет" },
+      ...models.map((m) => ({ icon: I.sparkle, label: m.name, meta: [m.params, fmtGB(m.size)].filter(Boolean).join(" · "), checked: spec.mode !== "custom" && m.name === spec.model,
+        onClick: () => { spec.mode = "run"; spec.model = m.name; app.renderTabs(); connect(true, `── модель: ${m.name}`); } })),
+      { sep: true },
+      { icon: I.download, label: "Скачать модель…", onClick: () => showSetup("models") },
+      { icon: I.term, label: "Своя команда запуска…", meta: "LM Studio, llama.cpp", onClick: customCommand },
+      { icon: I.refresh, label: "Обновить список", onClick: refreshAI },
+      ...(st?.installed || st?.running ? [] : [{ icon: I.ext, label: "Установить Ollama…", onClick: () => showSetup("install") }]),
+    ], { width: 320 });
+  }
+
+  async function customCommand() {
+    const cur = S.state?.settings?.aiCommand || "";
+    const c = prompt("Команда запуска модели в терминале. {model} заменится на имя модели.\nНапример: lms chat {model}   или   llama-cli -m C:\\models\\{model}.gguf -cnv", cur);
+    if (c == null) return;
+    await api.AISetPrefs(S.state?.settings?.aiModel || "", c.trim());
+    S.state = await api.GetState();
+    if (c.trim()) { spec.mode = "custom"; connect(true, "── своя команда: " + c.trim()); }
+  }
+
+  function showSetup(kind) {
+    setup.hidden = false;
+    if (kind === "install") {
+      setup.innerHTML = `<div class="ai-card">
+        <div class="ai-ico">${I.sparkle}</div>
+        <h3>Нужна Ollama</h3>
+        <p class="dim">Ollama запускает ИИ-модели прямо на этом компьютере: без интернета и без отправки данных наружу. Установка займёт минуту.</p>
+        <div class="ai-acts">
+          <button class="btn primary" data-s="winget">${I.download}Установить через winget</button>
+          <button class="btn" data-s="site">${I.ext}Скачать с ollama.com</button>
+          <button class="btn ghost" data-s="recheck">${I.refresh}Проверить снова</button>
+        </div>
+        <p class="dim small">Уже используешь LM Studio или llama.cpp? <button class="link" data-s="custom">Укажи свою команду запуска</button></p></div>`;
+    } else {
+      const have = new Set((tab.ai?.models || []).map((m) => m.name));
+      setup.innerHTML = `<div class="ai-card wide">
+        <div class="ai-ico">${I.download}</div>
+        <h3>${have.size ? "Скачать ещё модель" : "Скачай первую модель"}</h3>
+        <p class="dim">Модель скачается один раз и будет работать без интернета. Чем больше модель — тем умнее, но тем больше нужно памяти.</p>
+        <div class="ai-models">${SUGGEST.map(([n, sz, d]) => `<button class="ai-m${have.has(n) ? " have" : ""}" data-pull="${n}"><b>${n}</b><span class="dim small">${d}</span><span class="tag">${have.has(n) ? "есть" : sz}</span></button>`).join("")}</div>
+        <div class="path-input"><input placeholder="или любая модель из ollama.com/library, например phi4:14b" data-name><button class="btn primary" data-s="pull">${I.download}Скачать</button></div>
+        ${have.size ? `<button class="btn ghost" data-s="close">${I.x}Закрыть</button>` : ""}</div>`;
+    }
+    setup.onclick = async (e) => {
+      const b = e.target.closest("[data-s],[data-pull]");
+      if (!b) return;
+      if (b.dataset.pull) return pull(b.dataset.pull);
+      const a = b.dataset.s;
+      if (a === "site") win.openURL("https://ollama.com/download");
+      if (a === "winget") { spec.mode = "custom"; spec.after = "recheck"; aiOpenRaw("winget install -e --id Ollama.Ollama --accept-source-agreements --accept-package-agreements"); }
+      if (a === "recheck") { spec.mode = "run"; connect(true); }
+      if (a === "custom") customCommand();
+      if (a === "pull") { const n = setup.querySelector("[data-name]").value.trim(); if (n) pull(n); }
+      if (a === "close") { setup.hidden = true; xt.term.focus(); }
+    };
+    setup.querySelector("[data-name]")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { const n = e.target.value.trim(); if (n) pull(n); } });
+  }
+
+  function pull(name) {
+    spec.model = name;
+    spec.mode = "pull";
+    app.renderTabs();
+    connect(true, `── скачиваю ${name}…`);
+  }
+
+  // после скачивания — сразу чат; после установки Ollama — проверка
+  tab.onExit = (msg) => {
+    if (spec.kind !== "ai") return false;
+    const ok = /код 0\b/.test(msg || "");
+    if (spec.mode === "pull") {
+      if (ok) { spec.mode = "run"; refreshAI(); connect(true, `── модель ${spec.model} скачана, запускаю чат…`); return true; }
+      xt.term.write(`\r\n\x1b[31m── не удалось скачать ${spec.model}\x1b[0m\r\n`);
+    }
+    if (spec.after === "recheck") { spec.after = ""; spec.mode = "run"; xt.term.write("\r\n\x1b[90m── установка завершена, проверяю Ollama…\x1b[0m\r\n"); setTimeout(() => connect(true), 1500); return true; }
+    return false;
+  };
+
+  async function aiOpenRaw(cmd) {
+    setup.hidden = true;
+    if (tab.sid) { api.TermClose(tab.sid); sessions.delete(tab.sid); tab.sid = null; }
+    xt.term.write(`\r\n\x1b[90m$ ${cmd}\x1b[0m\r\n`);
+    try {
+      tab.sid = await api.AIOpen("", "custom", cmd, xt.term.cols, xt.term.rows);
+      register(tab.sid, tab);
+      tab.dead = false;
+    } catch (e) { xt.term.write(`\x1b[31m${errText(e)}\x1b[0m\r\n`); tab.setDead(true); }
+  }
+
+  async function aiConnect(note) {
+    if (tab.sid) { api.TermClose(tab.sid); sessions.delete(tab.sid); tab.sid = null; }
+    if (note) xt.term.write(`\r\n\x1b[90m${note}\x1b[0m\r\n`);
+    tab.dead = false; tab.badge = "";
+    const st = await refreshAI();
+    const custom = S.state?.settings?.aiCommand || "";
+    if (spec.mode === "custom" && !custom && !spec.after) spec.mode = "run";
+    if (spec.mode !== "custom") {
+      if (!st?.installed && !st?.running) return showSetup("install");
+      if (spec.mode !== "pull") {
+        const names = (st.models || []).map((m) => m.name);
+        if (!spec.model || !names.includes(spec.model)) spec.model = names.includes(S.state?.settings?.aiModel) ? S.state.settings.aiModel : names[0];
+        if (!spec.model) return showSetup("models");
+      }
+    }
+    setup.hidden = true;
+    app.renderTabs();
+    if (spec.mode === "run") xt.term.write(`\x1b[90m── запускаю ${spec.model}… (первый запуск модели может занять до минуты)\x1b[0m\r\n`);
+    try {
+      tab.sid = await api.AIOpen(spec.model || "", spec.mode || "run", custom, xt.term.cols, xt.term.rows);
+      register(tab.sid, tab);
+      if (spec.mode === "run") api.AISetPrefs(spec.model, custom).then(async () => { S.state = await api.GetState(); });
+      aiHead();
+      setTimeout(refreshAI, 4000);
+    } catch (e) {
+      xt.term.write(`\x1b[31m${errText(e)}\x1b[0m\r\n\x1b[90mEnter — попробовать снова\x1b[0m\r\n`);
+      tab.setDead(true);
+    }
+  }
+  let aiTimer = null;
+  if (spec.kind === "ai") aiTimer = setInterval(() => { if (S.active === tab.id && document.visibilityState === "visible") refreshAI(); }, 8000);
 
   xt.term.onData((d) => {
     if (tab.sid) api.TermWrite(tab.sid, d);
@@ -360,7 +535,7 @@ export function terminalTab(spec) {
     } else requestAnimationFrame(fitNow);
     setTimeout(() => xt.term.focus(), 30);
   };
-  tab.onClose = () => { closeMenu(); if (tab.sid) { api.TermClose(tab.sid); sessions.delete(tab.sid); } xt.dispose(); };
+  tab.onClose = () => { clearInterval(aiTimer); closeMenu(); if (tab.sid) { api.TermClose(tab.sid); sessions.delete(tab.sid); } xt.dispose(); };
   tab.onVpnChange = () => tab.renderHead();
   tab.renderHead();
   return tab;

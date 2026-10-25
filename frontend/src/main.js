@@ -10,6 +10,7 @@ import { settingsTab } from "./views/settings.js";
 import { openRunDialog, onRunOut, onRunHost, onRunDone, onRunOpened, openRunTab } from "./views/run.js";
 import { serverForm } from "./dialogs.js";
 import { zoom } from "./termprefs.js";
+import { startSysWidget } from "./syswidget.js";
 import { G, loadGit, gitSideHtml, gitSideClick, accountForm, addRepoMenu, cloneDialog, gitTab, gitStatusHtml, quickAccountMenu } from "./views/git.js";
 
 let seq = 1;
@@ -321,6 +322,9 @@ function defaultShell() {
   const d = S.state?.settings?.defaultShell;
   return S.shells.find((s) => s.id === d) || S.shells[0];
 }
+function openAI(model) {
+  addTab(terminalTab({ kind: "ai", mode: "run", model: model || S.state?.settings?.aiModel || "" }));
+}
 function newTerminalAt(dir) {
   const sh = defaultShell();
   if (sh) addTab(terminalTab({ kind: "local", shell: sh.id, cwd: dir }));
@@ -342,6 +346,7 @@ function shellMenu(anchor) {
   });
   if (!S.shells.length) items.push({ label: "Ничего не найдено", disabled: true });
   items.push({ sep: true },
+    { icon: I.sparkle, label: "ИИ-модель (Ollama)", meta: "Ctrl+Shift+A", onClick: () => openAI() },
     { icon: I.server, label: "SSH к серверу…", onClick: () => palette("Подключиться: ") },
     { icon: I.refresh, label: "Найти оболочки заново", onClick: async () => { S.shells = await api.RescanShells(); toast(`Найдено оболочек: ${S.shells.length}`); } },
     { icon: I.gear, label: "Оболочка по умолчанию…", onClick: () => addTab(settingsTab()) });
@@ -370,6 +375,7 @@ function homeTab() {
         <button class="home-action" data-h="term">${d ? shellIcon(d.kind) : I.term}<span>${esc(d?.name || "Терминал")}</span><kbd>Ctrl T</kbd></button>
         <button class="home-action" data-h="server">${I.plus}<span>Добавить сервер</span></button>
         <button class="home-action" data-h="shells">${I.term}<span>Другая оболочка…</span></button>
+        <button class="home-action" data-h="ai">${I.sparkle}<span>ИИ-терминал</span><kbd>Ctrl Shift A</kbd></button>
       </div>
       <div class="home-section">Как устроено</div>
       <div class="home-help">
@@ -384,6 +390,7 @@ function homeTab() {
       if (a === "term") newTerminal();
       if (a === "server") serverForm();
       if (a === "shells") shellMenu(b);
+      if (a === "ai") openAI();
     }));
   };
   tab.onShow = tab.refresh;
@@ -467,6 +474,7 @@ function commands() {
   G.repos.forEach((r) => c.push({ cat: "Git", title: `Репозиторий: ${r.name}`, hint: r.branch || "", run: () => addTab(gitTab(r.path)) }));
   c.push({ cat: "Git", title: "Добавить аккаунт GitHub / GitLab", run: () => accountForm() });
   c.push({ cat: "Git", title: "Клонировать репозиторий…", run: () => { if (!G.loaded) loadGit().then(() => cloneDialog()); else cloneDialog(); } });
+  c.push({ cat: "ИИ", title: "ИИ-терминал (локальная модель)", hint: "Ctrl+Shift+A", run: () => openAI() });
   c.push({ cat: "Сервер", title: "Добавить сервер", run: () => serverForm() });
   c.push({ cat: "Хранилище", title: "Открыть другую папку…", run: () => pickVault(false) });
   c.push({ cat: "Хранилище", title: "Показать в проводнике", run: () => api.Reveal(S.state.vault) });
@@ -518,6 +526,7 @@ $("#ribbon").addEventListener("click", (e) => {
     renderSidebar();
   }
   if (b.dataset.action === "settings") addTab(settingsTab());
+  if (b.dataset.action === "ai") openAI();
 });
 $("#openPalette").onclick = () => palette();
 $("#sideToggle").onclick = () => toggleSidebar();
@@ -543,6 +552,7 @@ document.addEventListener("keydown", (e) => {
   const cur = S.tabs.find((t) => t.id === S.active);
   if (k === "KeyP") palette();
   else if (k === "KeyB" && !e.shiftKey) toggleSidebar();
+  else if (k === "KeyA" && e.shiftKey) openAI();
   else if (k === "KeyF" && e.shiftKey && cur?.find) cur.find();
   else if (k === "KeyK" && e.shiftKey && cur?.clear) cur.clear();
   else if (k === "Equal" || k === "NumpadAdd") zoom(1);
@@ -611,10 +621,12 @@ setInterval(() => { if (S.state?.vault && document.hasFocus()) refreshServers();
 function showPanel(id) { S.panel = id; filter = ""; store.set("panel", id); toggleSidebar(true); renderSidebar(); }
 
 Object.assign(app, {
-  showPanel,
+  showPanel, openAI,
   addTab, activate, closeTab, renderTabs, renderSidebar, renderStatus, reload, watchJob,
   openSSH, openSftp, openFile, openLab, openRunDialog, newTerminal, newTerminalAt, pickVault, palette,
 });
+
+startSysWidget();
 
 (async function init() {
   S.panel = store.get("panel", "servers");

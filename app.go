@@ -14,18 +14,20 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"infra/internal/ai"
 	"infra/internal/gitx"
 	"infra/internal/proc"
 	"infra/internal/runner"
 	"infra/internal/shells"
 	"infra/internal/sshx"
+	"infra/internal/sysmon"
 	"infra/internal/term"
 	"infra/internal/vault"
 	"infra/internal/virt"
 	"infra/internal/vpn"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 // App — всё, что видит интерфейс: методы становятся window.go.main.App.*.
 type App struct {
@@ -44,6 +46,8 @@ type App struct {
 	runner *runner.Runner
 	sftp   *sftpPool
 	git    *gitx.Store
+	mon    *sysmon.Monitor
+	ollama *ai.Ollama
 	jobSeq atomic.Int64
 }
 
@@ -60,6 +64,8 @@ func (a *App) startup(ctx context.Context) {
 	a.settings = vault.LoadSettings()
 	a.terms = term.NewManager(a.emit)
 	a.git = gitx.NewStore()
+	a.mon = sysmon.New()
+	a.ollama = &ai.Ollama{}
 	a.vpn = &vpn.Manager{
 		Vault:    a.Vault,
 		Profiles: func() []vault.VPNProfile { a.mu.RLock(); defer a.mu.RUnlock(); return a.snap.VPNs },
@@ -90,6 +96,7 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) shutdown(ctx context.Context) {
 	a.vpn.StopAll()
 	a.terms.CloseAll()
+	a.ollama.Shutdown()
 	a.sftp.closeAll()
 }
 
@@ -284,6 +291,8 @@ func (a *App) SaveSettings(s vault.Settings) error {
 	s.Recent = a.settings.Recent
 	s.GitRepos = a.settings.GitRepos
 	s.GitDefault = a.settings.GitDefault
+	s.AIModel = a.settings.AIModel
+	s.AICommand = a.settings.AICommand
 	a.settings = s
 	a.mu.Unlock()
 	return vault.SaveSettings(s)

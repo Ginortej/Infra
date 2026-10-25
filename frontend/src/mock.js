@@ -42,6 +42,9 @@ export function createMock() {
     { id: "wsl:Ubuntu", name: "WSL · Ubuntu", kind: "wsl", path: "C:\\Windows\\System32\\wsl.exe" },
   ];
   const terms = {};
+  const sys = { cpu: 22, gpu: 18, ram: 14 };
+  const aiLoaded = [];
+  const aiPrefs = { aiModel: "", aiCommand: "" };
   let gitDefault = "github-ginortej";
   const gitAcc = localStorage.getItem("mock.noacc") ? [] : [
     { id: "github-ginortej", provider: "github", host: "github.com", label: "Личный", username: "Ginortej", name: "Ivan Petrov", email: "1234+Ginortej@users.noreply.github.com", gitAuth: "token", sshKey: "", hasToken: true },
@@ -81,7 +84,7 @@ export function createMock() {
   });
 
   const api = {
-    GetState: () => ({ version: "0.1.0-dev", vault: vaultPath, recent: [vaultPath, "D:\\work\\infra-lab"].filter(Boolean), os: "windows", settings: { parallel: 10, gitDefault },
+    GetState: () => ({ version: "0.1.0-dev", vault: vaultPath, recent: [vaultPath, "D:\\work\\infra-lab"].filter(Boolean), os: "windows", settings: { parallel: 10, gitDefault, ...aiPrefs },
       detected: { vboxmanage: "C:\\Program Files\\Oracle\\VirtualBox\\VBoxManage.exe", vmrun: "", vmwareDir: "C:\\Users\\user\\Documents\\Virtual Machines", singbox: "", wslDistro: "Ubuntu", parallel: 10 } }),
     PickFolder: () => prompt("Путь к папке (в приложении здесь откроется системный диалог)", "C:\\Users\\user\\Infra") || "",
     PickFile: () => prompt("Путь к файлу", "C:\\Users\\user\\.ssh\\id_ed25519") || "",
@@ -115,6 +118,12 @@ export function createMock() {
     },
     TermWrite: (id, d) => {
       const t = terms[id]; if (!t) return;
+      if (d === "\r" && t.ai) {
+        const q = t.line; t.line = "";
+        const ans = q.startsWith("/") ? "" : "Конечно! Вот пример команды для проверки свободного места на сервере:\r\n\r\n  df -h -x tmpfs\r\n\r\nОна покажет размер, занятое и свободное место по каждому разделу.";
+        emit("term:data", id, b64("\r\n" + ans + "\r\n\r\n" + t.prompt));
+        return;
+      }
       if (d === "\r") {
         const out = t.line === "ls" ? "app  backups  logs  deploy.sh\r\n" : t.line ? `${t.line}: command not found\r\n` : "";
         t.line = ""; emit("term:data", id, b64("\r\n" + out + t.prompt));
@@ -192,6 +201,27 @@ export function createMock() {
     GitClone: () => job("git clone"),
     GitCreateRemote: () => job("Создание репозитория"),
     TermOpenLocalAt: (...a) => api.TermOpenLocal(a[0], a[1]),
+    // ---------- мониторинг и ИИ ----------
+    SysStats: () => { const w = (v, d, lo, hi) => Math.max(lo, Math.min(hi, v + (Math.random() - 0.5) * d)); sys.cpu = w(sys.cpu, 18, 3, 97); sys.gpu = w(sys.gpu, 22, 0, 99); sys.ram = w(sys.ram, 0.6, 6, 30);
+      return { cpu: sys.cpu, cores: 16, ramUsed: sys.ram * 2 ** 30, ramTotal: 32 * 2 ** 30, time: Date.now() / 1000,
+        gpus: [{ name: "NVIDIA GeForce RTX 4070", util: sys.gpu, memUsed: (aiLoaded.length ? 6.1 : 1.2) * 2 ** 30, memTotal: 12 * 2 ** 30, temp: 52 + sys.gpu / 5, source: "nvidia-smi" }] }; },
+    AIStatus: () => ({ installed: !localStorage.getItem("mock.noollama"), running: !localStorage.getItem("mock.noollama"), version: "0.12.6", host: "http://127.0.0.1:11434",
+      models: localStorage.getItem("mock.nomodels") ? [] : [{ name: "llama3.2:3b", size: 2019393189, params: "3.2B", quant: "Q4_K_M" }, { name: "qwen2.5-coder:7b", size: 4683087332, params: "7.6B", quant: "Q4_K_M" }],
+      loaded: aiLoaded.map((n) => ({ name: n, size: 5.6 * 2 ** 30, sizeVram: 5.6 * 2 ** 30 })) }),
+    AIStartServer: () => {}, AIUnload: (m) => { const i = aiLoaded.indexOf(m); if (i >= 0) aiLoaded.splice(i, 1); },
+    AISetPrefs: (m, c) => { aiPrefs.aiModel = m; aiPrefs.aiCommand = c; },
+    AIOpen: (model, mode, custom) => {
+      const id = "term" + seq++;
+      if (mode === "run") {
+        if (!aiLoaded.includes(model)) aiLoaded.push(model);
+        terms[id] = { line: "", prompt: "\x1b[1m>>> \x1b[0m", ai: true };
+        emit("term:data", id, b64(`\x1b[90mollama run ${model}\x1b[0m\r\n\x1b[1m>>> \x1b[0m\x1b[90mSend a message (/? for help)\x1b[0m\r\x1b[4C`));
+      } else {
+        terms[id] = { line: "", prompt: "" };
+        let p = 0; const iv = setInterval(() => { p += 20; emit("term:data", id, b64(`\rpulling ${model}… ${p}%   `)); if (p >= 100) { clearInterval(iv); emit("term:data", id, b64("\r\nsuccess\r\n")); emit("term:exit", id, "процесс завершён, код 0"); } }, 300);
+      }
+      return id;
+    },
     TermOpenLocalWith: (...a) => api.TermOpenLocal(a[0], a[1]),
   };
   return { api, on: (ev, fn) => ((listeners[ev] ??= []).push(fn), () => {}) };

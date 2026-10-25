@@ -27,7 +27,7 @@ import (
 	"infra/internal/vpn"
 )
 
-const Version = "0.3.0"
+const Version = "0.4.0"
 
 // App — всё, что видит интерфейс: методы становятся window.go.main.App.*.
 type App struct {
@@ -48,6 +48,7 @@ type App struct {
 	git    *gitx.Store
 	mon    *sysmon.Monitor
 	ollama *ai.Ollama
+	ai     *aiState
 	jobSeq atomic.Int64
 }
 
@@ -91,11 +92,13 @@ func (a *App) startup(ctx context.Context) {
 			a.settings.Vault = ""
 		}
 	}
+	a.initAI()
 }
 
 func (a *App) shutdown(ctx context.Context) {
 	a.vpn.StopAll()
 	a.terms.CloseAll()
+	a.shutdownAI()
 	a.ollama.Shutdown()
 	a.sftp.closeAll()
 }
@@ -293,6 +296,8 @@ func (a *App) SaveSettings(s vault.Settings) error {
 	s.GitDefault = a.settings.GitDefault
 	s.AIModel = a.settings.AIModel
 	s.AICommand = a.settings.AICommand
+	s.AIEndpoint, s.AIAgent, s.RAGModel = a.settings.AIEndpoint, a.settings.AIAgent, a.settings.RAGModel
+	s.MCPEnabled, s.MCPPort, s.MCPToken, s.MCPReadOnly = a.settings.MCPEnabled, a.settings.MCPPort, a.settings.MCPToken, a.settings.MCPReadOnly
 	a.settings = s
 	a.mu.Unlock()
 	return vault.SaveSettings(s)

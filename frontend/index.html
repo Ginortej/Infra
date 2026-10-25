@@ -17,6 +17,7 @@
         <span>Поиск или команда</span><kbd>Ctrl P</kbd>
       </button>
       <button class="sysw" id="sysWidget" title="Загрузка системы — нажми для подробностей"></button>
+      <button class="chat-btn" id="chatBtn" title="Чат с ИИ (Ctrl+J)"><svg viewBox="0 0 24 24"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H10l-5 4v-4H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M8 10h8M8 13h5"/></svg><span>ИИ</span></button>
       <div class="win-controls">
         <button id="winMin" title="Свернуть"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
         <button id="winMax" title="Развернуть"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
@@ -34,7 +35,7 @@
         <button data-panel="scripts" title="Скрипты"><svg viewBox="0 0 24 24"><path d="m8 9-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/></svg></button>
         <button data-panel="git" title="Git"><svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="7" r="2"/><path d="M6 7v10M18 9c0 5-6 4-11.5 8.5"/></svg></button>
         <div class="ribbon-spacer"></div>
-        <button data-action="ai" title="ИИ-терминал (Ctrl+Shift+A)"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
+        <button data-panel="ai" title="ИИ: агенты, модели, MCP"><svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button>
         <button data-action="settings" title="Настройки (Ctrl+,)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></button>
       </nav>
       <aside class="sidebar" id="sidebar"></aside>

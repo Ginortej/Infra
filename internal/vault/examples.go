@@ -14,6 +14,7 @@ var examples = map[string]string{
 - vpn/      — VPN-профили
 - labs/     — лабы (виртуальные машины из YAML)
 - scripts/  — скрипты: *.sh (по SSH на серверах), *.yml (Ansible), *.ps1 / *.bat (на этом ПК)
+- knowledge/ — база знаний для ИИ-агентов (*.md) и правила безопасности security/rules.yaml
 - .app/     — служебные файлы приложения (known_hosts, состояние, временные файлы)
 `,
 	"servers/example/my-server.yaml": `# Пример сервера. Скопируй файл и поменяй значения.

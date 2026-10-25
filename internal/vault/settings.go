@@ -22,6 +22,13 @@ type Settings struct {
 	GitDefault   string   `json:"gitDefault"` // аккаунт по умолчанию
 	AIModel      string   `json:"aiModel"`    // модель по умолчанию для ИИ-терминала
 	AICommand    string   `json:"aiCommand"`  // своя команда запуска (не Ollama)
+	AIEndpoint   string   `json:"aiEndpoint"` // OpenAI-совместимый сервер (LM Studio, llama.cpp…)
+	AIAgent      string   `json:"aiAgent"`    // агент по умолчанию в чате
+	RAGModel     string   `json:"ragModel"`   // модель эмбеддингов для базы знаний
+	MCPEnabled   bool     `json:"mcpEnabled"`
+	MCPPort      int      `json:"mcpPort"`
+	MCPToken     string   `json:"mcpToken"`
+	MCPReadOnly  bool     `json:"mcpReadOnly"` // внешним ИИ — только чтение
 }
 
 var settingsMu sync.Mutex

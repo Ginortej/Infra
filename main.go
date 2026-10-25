@@ -2,7 +2,15 @@ package main
 
 import (
 	"embed"
+	"errors"
+	"fmt"
 	"log"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+
+	"infra/internal/mcp"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -14,6 +22,14 @@ import (
 var assets embed.FS
 
 func main() {
+	// Infra.exe mcp — stdio-мост для Claude Desktop и других MCP-клиентов
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		if err := mcp.Bridge(os.Stdin, os.Stdout, launchSelf); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	app := NewApp()
 	err := wails.Run(&options.App{
 		Title:            "Infra",
@@ -37,4 +53,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// launchSelf запускает окно Infra для stdio-моста, если оно ещё не открыто.
+func launchSelf() error {
+	if b, err := os.ReadFile(pidPath()); err == nil {
+		if pid, err := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && processAlive(pid) {
+			return errors.New("Infra открыта, но MCP выключен — включи его: Infra → ИИ → MCP")
+		}
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(exe)
+	return cmd.Start()
 }

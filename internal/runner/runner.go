@@ -35,6 +35,8 @@ type Request struct {
 	Shell    string   `json:"shell"`    // для .ps1: путь к pwsh/powershell
 	Parallel int      `json:"parallel"` // для bash
 	Sudo     bool     `json:"sudo"`     // bash: выполнить через sudo (без пароля)
+	// Hook получает события этого запуска вместо Emit (для ИИ-инструментов, которые ждут вывод).
+	Hook Emit `json:"-"`
 }
 
 type Emit func(event string, data ...any)
@@ -50,11 +52,24 @@ type Runner struct {
 	seq    atomic.Int64
 	mu     sync.Mutex
 	cancel map[string]context.CancelFunc
+	hooks  map[string]Emit
+}
+
+// emit отправляет событие запуска: в hook, если он задан, иначе в интерфейс.
+func (r *Runner) emit(event string, run string, data ...any) {
+	r.mu.Lock()
+	h := r.hooks[run]
+	r.mu.Unlock()
+	if h != nil {
+		h(event, append([]any{run}, data...)...)
+		return
+	}
+	r.Emit(event, append([]any{run}, data...)...)
 }
 
 func (r *Runner) out(run, host string, b []byte) {
 	if len(b) > 0 {
-		r.Emit("run:out", run, host, base64.StdEncoding.EncodeToString(b))
+		r.emit("run:out", run, host, base64.StdEncoding.EncodeToString(b))
 	}
 }
 
@@ -63,7 +78,7 @@ func (r *Runner) info(run, host, s string) {
 }
 
 func (r *Runner) hostState(run, host, state string, code int, start time.Time) {
-	r.Emit("run:host", run, host, state, code, time.Since(start).Milliseconds())
+	r.emit("run:host", run, host, state, code, time.Since(start).Milliseconds())
 }
 
 // emitWriter превращает поток вывода в события (с \n -> \r\n для терминала).
@@ -127,7 +142,18 @@ func (r *Runner) Start(req Request) (string, error) {
 		delete(r.cancel, run)
 		r.mu.Unlock()
 		cancel()
-		r.Emit("run:done", run)
+		r.emit("run:done", run)
+		r.mu.Lock()
+		delete(r.hooks, run)
+		r.mu.Unlock()
+	}
+	if req.Hook != nil {
+		r.mu.Lock()
+		if r.hooks == nil {
+			r.hooks = map[string]Emit{}
+		}
+		r.hooks[run] = req.Hook
+		r.mu.Unlock()
 	}
 
 	switch kind {

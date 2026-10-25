@@ -11,6 +11,8 @@ import { openRunDialog, onRunOut, onRunHost, onRunDone, onRunOpened, openRunTab 
 import { serverForm } from "./dialogs.js";
 import { zoom } from "./termprefs.js";
 import { startSysWidget } from "./syswidget.js";
+import { A, loadAI, aiSideHtml, aiSideClick, openMarket, openHub, agentForm } from "./views/ai.js";
+import { initChat, toggleChat, openChat, chatTabChanged } from "./views/chat.js";
 import { G, loadGit, gitSideHtml, gitSideClick, accountForm, addRepoMenu, cloneDialog, gitTab, gitStatusHtml, quickAccountMenu } from "./views/git.js";
 
 let seq = 1;
@@ -87,6 +89,7 @@ function showWorkspace() {
   refreshVpn();
   refreshServers();
   loadGit().then(renderStatus).catch(() => {});
+  loadAI().then(renderStatus).catch(() => {});
   if (S.snap.errors?.length) toast(`${I.warn} Ошибки в конфигах: ${esc(S.snap.errors[0])}${S.snap.errors.length > 1 ? ` и ещё ${S.snap.errors.length - 1}` : ""}`, "err");
 }
 
@@ -107,6 +110,7 @@ const PANELS = {
   vpn: { title: "VPN", actions: [["Новый профиль", I.plus, () => newFile("vpn/new-profile.yaml", "name: new-profile\ntype: wireguard\nwireguard: vpn/new-profile.conf\nsocks: 10810\n")]] },
   labs: { title: "Лабы", actions: [["Новая лаба", I.plus, () => newFile("labs/new-lab.yaml", null, "labs/example-lab.yaml")]] },
   git: { title: "Git", actions: [["Добавить аккаунт GitHub / GitLab", I.user, () => accountForm()], ["Добавить репозиторий", I.plus, (b) => addRepoMenu(b)], ["Обновить", I.refresh, () => loadGit().then(renderList)]] },
+  ai: { title: "ИИ", actions: [["Чат (Ctrl+J)", I.chat, () => toggleChat()], ["Маркет моделей и агентов", I.store, () => openMarket()], ["Новый агент", I.plus, () => agentForm()], ["Безопасность и MCP", I.shield, () => openHub("knowledge")]] },
   scripts: { title: "Скрипты", actions: [["Новый bash-скрипт", I.plus, () => newFile("scripts/snippets/new.sh", "#!/usr/bin/env bash\n# выполнится на выбранных серверах\n\nhostname\n")]] },
 };
 
@@ -193,6 +197,8 @@ function renderList() {
     }).join("") || `<div class="side-empty">Скриптов нет.<br>Положи .sh, .yml или .ps1 в папку scripts/</div>`;
   }
 
+  if (S.panel === "ai") html = aiSideHtml(match, group);
+
   if (S.panel === "git") {
     if (!G.loaded) loadGit().then(renderList).catch((e) => toast(esc(errText(e)), "err"));
     html = gitSideHtml(match, act);
@@ -219,6 +225,7 @@ function renderList() {
 
 $("#sidebar").addEventListener("click", async (e) => {
   if (S.panel === "git" && gitSideClick(e)) return;
+  if (S.panel === "ai" && aiSideClick(e)) return;
   const t = (s) => e.target.closest(s);
   let x;
   if ((x = t("[data-sftp]"))) return openSftp(x.dataset.sftp);
@@ -275,6 +282,7 @@ function activate(id) {
   renderTabs();
   renderList();
   renderStatus();
+  chatTabChanged();
   t?.onShow?.();
 }
 
@@ -375,7 +383,7 @@ function homeTab() {
         <button class="home-action" data-h="term">${d ? shellIcon(d.kind) : I.term}<span>${esc(d?.name || "Терминал")}</span><kbd>Ctrl T</kbd></button>
         <button class="home-action" data-h="server">${I.plus}<span>Добавить сервер</span></button>
         <button class="home-action" data-h="shells">${I.term}<span>Другая оболочка…</span></button>
-        <button class="home-action" data-h="ai">${I.sparkle}<span>ИИ-терминал</span><kbd>Ctrl Shift A</kbd></button>
+        <button class="home-action" data-h="ai">${I.sparkle}<span>Чат с ИИ-агентом</span><kbd>Ctrl J</kbd></button>
       </div>
       <div class="home-section">Как устроено</div>
       <div class="home-help">
@@ -390,7 +398,7 @@ function homeTab() {
       if (a === "term") newTerminal();
       if (a === "server") serverForm();
       if (a === "shells") shellMenu(b);
-      if (a === "ai") openAI();
+      if (a === "ai") toggleChat(true);
     }));
   };
   tab.onShow = tab.refresh;
@@ -444,6 +452,7 @@ function renderStatus() {
     <button class="sb" data-go="servers">${I.server}${ok}/${S.snap.servers.length} доступно</button>
     ${jobs.map(([, j]) => `<span class="sb job" title="${esc(j.msg || "")}">${I.activity}${esc(j.title)}<span class="job-bar"><div style="width:${j.pct}%"></div></span><span class="dim small">${esc(j.msg || "")}</span></span>`).join("")}
     <span class="grow"></span>
+    ${A.mcp?.running ? `<button class="sb" data-mcpsb title="MCP-сервер для других ИИ: ${esc(A.mcp.url || "")}"><span class="dot ok"></span>MCP</button>` : ""}
     ${t?.type === "term" ? `<span class="sb mono">${t.spec.kind === "ssh" ? "ssh" : "local"} · ${t.xt.term.cols}×${t.xt.term.rows}</span>` : ""}
     ${t?.type === "editor" ? `<span class="sb mono">UTF-8 · ${esc(t.path.split(".").pop().toUpperCase())}</span>` : ""}
     <button class="sb" data-vault2>${I.vault}${esc(S.snap.name || "")}</button>`;
@@ -454,6 +463,7 @@ $("#statusbar").addEventListener("click", (e) => {
   const g = e.target.closest("[data-go]");
   if (g) { S.panel = g.dataset.go; renderSidebar(); }
   if (e.target.closest("[data-vault2]")) vaultMenu(e.target.closest("[data-vault2]"));
+  if (e.target.closest("[data-mcpsb]")) openHub("mcp");
 });
 
 // ============================================================
@@ -474,7 +484,14 @@ function commands() {
   G.repos.forEach((r) => c.push({ cat: "Git", title: `Репозиторий: ${r.name}`, hint: r.branch || "", run: () => addTab(gitTab(r.path)) }));
   c.push({ cat: "Git", title: "Добавить аккаунт GitHub / GitLab", run: () => accountForm() });
   c.push({ cat: "Git", title: "Клонировать репозиторий…", run: () => { if (!G.loaded) loadGit().then(() => cloneDialog()); else cloneDialog(); } });
-  c.push({ cat: "ИИ", title: "ИИ-терминал (локальная модель)", hint: "Ctrl+Shift+A", run: () => openAI() });
+  c.push({ cat: "ИИ", title: "Чат с ИИ-агентом", hint: "Ctrl+J", run: () => toggleChat(true) });
+  c.push({ cat: "ИИ", title: "Маркет моделей", run: () => openMarket("models") });
+  c.push({ cat: "ИИ", title: "Каталог агентов", run: () => openMarket("agents") });
+  c.push({ cat: "ИИ", title: "Новый агент…", run: () => agentForm() });
+  c.push({ cat: "ИИ", title: "MCP для других ИИ (Claude, Cursor)", run: () => openHub("mcp") });
+  c.push({ cat: "ИИ", title: "База знаний и безопасность", run: () => openHub("knowledge") });
+  c.push({ cat: "ИИ", title: "ИИ-терминал (ollama run)", hint: "Ctrl+Shift+A", run: () => openAI() });
+  A.agents.forEach((a) => c.push({ cat: "Агент", title: a.name, hint: a.model, run: () => openChat(a.id) }));
   c.push({ cat: "Сервер", title: "Добавить сервер", run: () => serverForm() });
   c.push({ cat: "Хранилище", title: "Открыть другую папку…", run: () => pickVault(false) });
   c.push({ cat: "Хранилище", title: "Показать в проводнике", run: () => api.Reveal(S.state.vault) });
@@ -526,8 +543,8 @@ $("#ribbon").addEventListener("click", (e) => {
     renderSidebar();
   }
   if (b.dataset.action === "settings") addTab(settingsTab());
-  if (b.dataset.action === "ai") openAI();
 });
+$("#chatBtn").onclick = () => toggleChat();
 $("#openPalette").onclick = () => palette();
 $("#sideToggle").onclick = () => toggleSidebar();
 
@@ -553,6 +570,7 @@ document.addEventListener("keydown", (e) => {
   if (k === "KeyP") palette();
   else if (k === "KeyB" && !e.shiftKey) toggleSidebar();
   else if (k === "KeyA" && e.shiftKey) openAI();
+  else if (k === "KeyJ") toggleChat();
   else if (k === "KeyF" && e.shiftKey && cur?.find) cur.find();
   else if (k === "KeyK" && e.shiftKey && cur?.clear) cur.clear();
   else if (k === "Equal" || k === "NumpadAdd") zoom(1);
@@ -618,15 +636,26 @@ setInterval(() => { if (S.state?.vault && document.hasFocus()) refreshServers();
 // ============================================================
 //  Старт
 // ============================================================
+// Вставить текст (команду из чата) в открытый терминал — без Enter, чтобы человек проверил.
+function pasteToTerminal(text) {
+  const cur = S.tabs.find((t) => t.id === S.active);
+  const t = cur?.type === "term" && !cur.dead ? cur : [...S.tabs].reverse().find((t) => t.type === "term" && !t.dead && t.sid);
+  if (!t?.sid) return toast("Нет открытого терминала", "err");
+  activate(t.id);
+  t.xt.term.paste(text.replace(/\r?\n$/, "")); // bracketed paste: оболочка не выполнит сразу
+  t.xt.term.focus();
+}
+
 function showPanel(id) { S.panel = id; filter = ""; store.set("panel", id); toggleSidebar(true); renderSidebar(); }
 
 Object.assign(app, {
-  showPanel, openAI,
+  showPanel, openAI, openChat, toggleChat, pasteToTerminal,
   addTab, activate, closeTab, renderTabs, renderSidebar, renderStatus, reload, watchJob,
   openSSH, openSftp, openFile, openLab, openRunDialog, newTerminal, newTerminalAt, pickVault, palette,
 });
 
 startSysWidget();
+initChat();
 
 (async function init() {
   S.panel = store.get("panel", "servers");

@@ -206,7 +206,7 @@ export function createMock() {
       return { cpu: sys.cpu, cores: 16, ramUsed: sys.ram * 2 ** 30, ramTotal: 32 * 2 ** 30, time: Date.now() / 1000,
         gpus: [{ name: "NVIDIA GeForce RTX 4070", util: sys.gpu, memUsed: (aiLoaded.length ? 6.1 : 1.2) * 2 ** 30, memTotal: 12 * 2 ** 30, temp: 52 + sys.gpu / 5, source: "nvidia-smi" }] }; },
     AIStatus: () => ({ installed: !localStorage.getItem("mock.noollama"), running: !localStorage.getItem("mock.noollama"), version: "0.12.6", host: "http://127.0.0.1:11434",
-      models: localStorage.getItem("mock.nomodels") ? [] : [{ name: "llama3.2:3b", size: 2019393189, params: "3.2B", quant: "Q4_K_M" }, { name: "qwen2.5-coder:7b", size: 4683087332, params: "7.6B", quant: "Q4_K_M" }],
+      models: [...(localStorage.getItem("mock.nomodels") ? [] : [{ name: "llama3.2:3b", size: 2019393189, params: "3.2B", quant: "Q4_K_M" }, { name: "qwen3:8b", size: 5225376047, params: "8.2B", quant: "Q4_K_M" }, { name: "qwen2.5-coder:7b", size: 4683087332, params: "7.6B", quant: "Q4_K_M" }]), ...aiModels],
       loaded: aiLoaded.map((n) => ({ name: n, size: 5.6 * 2 ** 30, sizeVram: 5.6 * 2 ** 30 })) }),
     AIStartServer: () => {}, AIUnload: (m) => { const i = aiLoaded.indexOf(m); if (i >= 0) aiLoaded.splice(i, 1); },
     AISetPrefs: (m, c) => { aiPrefs.aiModel = m; aiPrefs.aiCommand = c; },
@@ -223,6 +223,95 @@ export function createMock() {
       return id;
     },
     TermOpenLocalWith: (...a) => api.TermOpenLocal(a[0], a[1]),
+    // ---------- агенты, маркет, MCP, база знаний ----------
+    AICatalog: () => ({ models: mockModels, agents: mockTemplates, tools: mockTools }),
+    AIPull: (m) => { let c = 0; const total = 4.7e9; const iv = setInterval(() => { c += total / 12; if (c >= total) { clearInterval(iv); aiModels.push({ name: m.includes(":") ? m : m + ":latest", size: total, params: "?", quant: "Q4_K_M" }); emit("ai:pull", { model: m, done: true, status: "готово" }); } else emit("ai:pull", { model: m, status: "pulling", completed: c, total }); }, 250); },
+    AIPullCancel: () => {}, AIPulling: () => [],
+    AIDelete: (m) => { const i = aiModels.findIndex((x) => x.name === m); if (i >= 0) aiModels.splice(i, 1); },
+    AIModelCaps: () => ["completion", "tools"],
+    AIProvider: () => ({ endpoint: aiProv.endpoint, hasKey: !!aiProv.key }), AISetProvider: (e, k) => { aiProv.endpoint = e; if (k && k !== "-") aiProv.key = k; if (k === "-") aiProv.key = ""; },
+    AIProviderModels: () => aiProv.endpoint ? ["qwen2.5-7b-instruct", "llama-3.1-8b"] : Promise.reject("адрес сервера не задан"),
+    AgentList: () => agents.map((a) => ({ ...a })),
+    AgentSave: (a) => { if (!a.id) a.id = (a.name || "agent").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "agent" + seq++; const i = agents.findIndex((x) => x.id === a.id); i >= 0 ? (agents[i] = a) : agents.push(a); return a; },
+    AgentDelete: (id) => { const i = agents.findIndex((x) => x.id === id); if (i >= 0) agents.splice(i, 1); },
+    AgentFromTemplate: (id, model) => { const t = mockTemplates.find((x) => x.template === id); const a = { ...t, id: id + "-" + seq++, model: model || t.model, provider: "ollama", approve: "danger", temperature: 0.3 }; delete a.long; agents.push(a); return a; },
+    AISetDefaultAgent: () => {},
+    ChatList: () => Object.values(chats).filter((c) => c.messages.length).map((c) => ({ id: c.id, agent: c.agent, title: c.title, updated: c.updated, count: c.messages.length })).sort((a, b) => b.updated - a.updated),
+    ChatLoad: (id) => chats[id] || Promise.reject("нет чата"), ChatDelete: (id) => { delete chats[id]; }, ChatBusy: () => false, ChatStop: (id) => { chatStop[id] = true; },
+    ChatSend: (sid, agentId, text) => mockChat(sid, agentId, text),
+    AgentApprove: (id, d) => { const p = pending[id]; if (!p) throw "запрос уже неактуален"; delete pending[id]; p(d); },
+    AgentPending: () => [],
+    KnowledgeStatus: () => ({ root: "knowledge", exists: knowOn, files: knowOn ? 5 : 0, chunks: knowOn ? 23 : 0, vectors: aiModels.some((m) => m.name.startsWith("nomic")), model: "nomic-embed-text", built: Date.now() / 1000, error: "", rulesFile: "knowledge/security/rules.yaml", hasRules: knowOn, guardErrors: [], embedModel: "nomic-embed-text", embedReady: aiModels.some((m) => m.name.startsWith("nomic")) }),
+    KnowledgeInit: () => { knowOn = true; return 6; }, KnowledgeReindex: () => {},
+    KnowledgeSearch: (q) => [{ file: "security/policy.md", heading: "Фаервол", text: "Фаервол (ufw/nftables) должен быть включён всегда. Открывать порт — только конкретный, с комментарием.", score: 0.03, words: 4.2, vector: 0.71 }, { file: "security/ssh-hardening.md", heading: "Открытые порты", text: "ss -tlnp — наружу должны слушать только нужные сервисы.", score: 0.02, words: 2.1, vector: 0.55 }],
+    SetRAGModel: () => {},
+    GuardCheck: (t) => /rm\s+-rf\s+\/(\s|$)|mkfs/.test(t) ? { level: "deny", reasons: ["рекурсивное удаление системных каталогов"] } : /reboot|iptables -F|ufw disable|restart postgres/.test(t) ? { level: "strict", reasons: ["выключение или перезагрузка сервера"] } : { level: "allow", reasons: [] },
+    MCPStatus: () => mcpInfo(), MCPSetEnabled: (on) => { mcp.on = on; return mcpInfo(); }, MCPSetReadOnly: (ro) => { mcp.ro = ro; return mcpInfo(); }, MCPNewToken: () => mcpInfo(), MCPResetAllow: () => {},
   };
+  // ----- данные ИИ для мока -----
+  const aiModels = [];
+  const mv = (tag, size) => ({ tag, size });
+  const mockModels = [
+    { id: "qwen3", title: "Qwen3", publisher: "Alibaba", pick: "8b", desc: "Универсальная модель с режимом рассуждений. Хорошо вызывает инструменты и понимает русский — лучший выбор для агента.", caps: ["tools", "thinking", "ru"], variants: [mv("1.7b", 1.4), mv("4b", 2.5), mv("8b", 5.2), mv("14b", 9.3), mv("32b", 20)] },
+    { id: "gpt-oss", title: "gpt-oss", publisher: "OpenAI", pick: "20b", desc: "Открытая модель OpenAI с рассуждениями и инструментами. Нужна видеокарта от 16 ГБ.", caps: ["tools", "thinking", "ru"], variants: [mv("20b", 14), mv("120b", 65)] },
+    { id: "qwen2.5-coder", title: "Qwen2.5 Coder", publisher: "Alibaba", pick: "7b", desc: "Для кода, скриптов bash/PowerShell и конфигов. Быстрая и точная.", caps: ["tools", "code", "ru"], variants: [mv("1.5b", 1), mv("3b", 1.9), mv("7b", 4.7), mv("14b", 9), mv("32b", 20)] },
+    { id: "llama3.2", title: "Llama 3.2", publisher: "Meta", pick: "3b", desc: "Маленькая и быстрая. Подойдёт для слабых ПК и простых вопросов.", caps: ["tools"], variants: [mv("1b", 1.3), mv("3b", 2)] },
+    { id: "gemma3", title: "Gemma 3", publisher: "Google", pick: "4b", desc: "Понимает картинки и скриншоты, хорошо пишет текст. Инструменты не вызывает — только чат.", caps: ["vision", "ru"], variants: [mv("1b", 0.8), mv("4b", 3.3), mv("12b", 8.1), mv("27b", 17)] },
+    { id: "deepseek-r1", title: "DeepSeek-R1", publisher: "DeepSeek", pick: "8b", desc: "Рассуждающая модель: думает перед ответом.", caps: ["thinking", "tools"], variants: [mv("8b", 5.2), mv("14b", 9), mv("32b", 20)] },
+    { id: "nomic-embed-text", title: "Nomic Embed", publisher: "Nomic AI", pick: "latest", desc: "Модель эмбеддингов для поиска по документам (RAG). Не для чата.", caps: ["embed"], variants: [mv("latest", 0.27)] },
+  ];
+  const T = (name, title, group, danger) => ({ name, title, group, danger, desc: title });
+  const mockTools = [T("list_servers", "Список серверов", "servers"), T("run_command", "Команда на сервере", "servers", true), T("read_file", "Прочитать файл", "files"), T("list_dir", "Содержимое папки", "files"), T("write_file", "Записать файл", "files", true),
+    T("list_scripts", "Список скриптов", "scripts"), T("read_vault_file", "Файл хранилища", "scripts"), T("write_vault_file", "Записать в хранилище", "scripts", true), T("run_script", "Запустить скрипт", "scripts", true),
+    T("vpn_status", "Состояние VPN", "vpn"), T("vpn_switch", "Вкл/выкл VPN", "vpn", true), T("list_labs", "Лабы", "labs"), T("lab_action", "Действие с лабой", "labs", true),
+    T("git_repos", "Репозитории", "git"), T("git_status", "Git: статус", "git"), T("git_diff", "Git: изменения", "git"), T("git_log", "Git: история", "git"), T("local_command", "Команда на этом ПК", "local", true), T("search_knowledge", "Поиск в базе знаний", "knowledge")];
+  const rd = ["list_servers", "list_dir", "read_file", "search_knowledge"];
+  const mockTemplates = [
+    { template: "devops", name: "DevOps-помощник", icon: "server", color: "#8b7cf6", model: "qwen3:8b", desc: "Смотрит состояние серверов, выполняет команды, правит конфиги и запускает скрипты.", long: "Универсальный агент для повседневной работы: «проверь место на дисках на всех prod», «перезапусти nginx на web-01 и покажи логи». Каждое изменение — только после твоего «Разрешить».", tools: [...rd, "run_command", "write_file", "list_scripts", "read_vault_file", "run_script", "vpn_status", "list_labs"], system: "Ты — DevOps-инженер." },
+    { template: "logs", name: "Разбор логов", icon: "activity", color: "#e0a03c", model: "qwen3:8b", desc: "Ищет причину ошибок: journalctl, логи nginx, docker, dmesg. Ничего не меняет.", long: "Безопасный агент для расследований: читает логи и состояние сервисов, формулирует причину и план.", tools: [...rd, "run_command"], system: "Ты — инженер по разбору инцидентов." },
+    { template: "security", name: "Аудитор безопасности", icon: "shield", color: "#4cc38a", model: "qwen3:8b", desc: "Проверяет серверы по чек-листу из базы знаний: SSH, порты, обновления, фаервол.", long: "Опирается на твою базу знаний (knowledge/security): сверяет конфигурацию серверов с политиками и выдаёт отчёт с рисками и исправлениями.", tools: [...rd, "run_command"], system: "Ты — аудитор безопасности." },
+    { template: "scripter", name: "Автор скриптов", icon: "code", color: "#5aa9f0", model: "qwen2.5-coder:7b", desc: "Пишет bash, PowerShell и Ansible-плейбуки прямо в папку scripts/.", long: "Опиши задачу словами — агент напишет скрипт или плейбук и сохранит в хранилище.", tools: ["list_scripts", "read_vault_file", "write_vault_file", "list_servers", "search_knowledge"], system: "Ты пишешь скрипты." },
+    { template: "chat", name: "Просто чат", icon: "sparkle", color: "#9aa0a6", model: "llama3.2:3b", desc: "Модель без доступа к серверам.", long: "Обычный локальный чат. Ничего не видит и ничего не трогает.", tools: [], system: "Ты — полезный ассистент." },
+  ];
+  const agents = localStorage.getItem("mock.noagents") ? [] : [{ ...mockTemplates[0], id: "devops", provider: "ollama", approve: "danger", temperature: 0.3 }, { ...mockTemplates[2], id: "security", provider: "ollama", approve: "danger", temperature: 0.2 }];
+  agents.forEach((a) => delete a.long);
+  const chats = {}, pending = {}, chatStop = {};
+  const aiProv = { endpoint: "", key: "" };
+  let knowOn = !localStorage.getItem("mock.noknow");
+  const mcp = { on: !!localStorage.getItem("mock.mcp"), ro: false };
+  const mcpInfo = () => ({ enabled: mcp.on, running: mcp.on, port: 47821, url: "http://127.0.0.1:47821/mcp", token: "3f9c0a1b7d2e4c6f8a0b1c2d3e4f5a6b7c8d9e0f", readOnly: mcp.ro, exe: "C:\\Users\\user\\Infra\\Infra.exe", tools: mcp.ro ? 12 : 19,
+    log: mcp.on ? [{ time: Date.now() / 1000 - 300, client: "claude-ai", what: "подключение", result: "ок" }, { time: Date.now() / 1000 - 200, client: "claude-ai", what: "list_servers", result: "ок" }, { time: Date.now() / 1000 - 100, client: "claude-ai", what: "run_command", result: "отклонено" }] : [],
+    configs: [{ client: "Claude Desktop", where: "%APPDATA%\\Claude\\claude_desktop_config.json", lang: "json", text: '{\n  "mcpServers": {\n    "infra": {\n      "command": "C:\\\\Users\\\\user\\\\Infra\\\\Infra.exe",\n      "args": ["mcp"]\n    }\n  }\n}' },
+      { client: "Claude Code", where: "в терминале", lang: "shell", text: 'claude mcp add infra --scope user -- "C:\\Users\\user\\Infra\\Infra.exe" mcp' }] });
+  function mockChat(sid, agentId, text) {
+    const id = sid || "c" + seq++;
+    const c = (chats[id] ??= { id, agent: agentId, title: text.slice(0, 46), created: Date.now() / 1000, messages: [] });
+    c.messages.push({ role: "user", content: text });
+    c.updated = Date.now() / 1000;
+    const ev = (type, x = {}) => emit("agent:event", { session: id, type, ...x });
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const say = async (s) => { for (const w of s.match(/\S+\s*/g)) { if (chatStop[id]) return; ev("delta", { text: w }); await wait(25); } };
+    (async () => {
+      ev("start"); await wait(200);
+      for (const w of "Нужно посмотреть место на дисках на серверах. Начну со списка.".split(" ")) { ev("thinking", { text: w + " " }); await wait(20); }
+      const a1 = { id: "call_1", name: "list_servers", args: {} };
+      ev("tool", { id: a1.id, tool: a1.name, args: "{}" }); await wait(300);
+      ev("result", { id: a1.id, tool: a1.name, ok: true, text: '<data source="list_servers">\n- prod-web-01: deploy@10.0.5.12:22, group=prod\n- prod-db-01: admin@10.0.6.20:22, group=prod, READ-ONLY by policy\n</data>' });
+      await say("Проверю место на дисках на **prod-web-01**:");
+      const a2 = { server: "prod-web-01", command: "df -h -x tmpfs -x devtmpfs" };
+      ev("tool", { id: "call_2", tool: "run_command", args: JSON.stringify(a2) });
+      const d = await new Promise((res) => { const apid = "ap" + seq++; pending[apid] = res; emit("agent:approve", { id: apid, source: "chat", session: id, agent: agents.find((x) => x.id === agentId)?.name, tool: "run_command", title: "Команда на сервере", summary: a2.command, servers: ["prod-web-01"], level: "allow", reasons: [], danger: true,
+        knowledge: [{ file: "security/policy.md", heading: "Изменения на серверах", text: "- Перед правкой конфига — резервная копия рядом: file.bak-ДАТА.\n- На серверах группы prod изменения — только в окно обслуживания, кроме аварий." }] }); });
+      if (d.startsWith("deny")) { ev("result", { id: "call_2", tool: "run_command", ok: false, text: "ОШИБКА: пользователь отклонил это действие. Не повторяй его без нового запроса" }); await say("Хорошо, не выполняю. Могу предложить команду для ручной проверки:\n\n```bash\ndf -h -x tmpfs -x devtmpfs\n```"); }
+      else {
+        await wait(500);
+        ev("result", { id: "call_2", tool: "run_command", ok: true, text: '<data source="run_command">\nexit code: 0\nFilesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        40G   31G  7.1G  82% /\n/dev/sdb1       200G   94G  106G  47% /var/lib/docker\nDB_PASSWORD=[скрыто]\n</data>\n[Infra: скрыто секретов — 1]' });
+        await say("На **prod-web-01**:\n\n- `/` занято **82%** (свободно 7.1 ГБ) — стоит почистить\n- `/var/lib/docker` — 47%, всё в порядке\n\nЧаще всего место на корне съедают журналы. Можно освободить так:\n\n```bash\nsudo journalctl --vacuum-size=500M\nsudo apt-get clean\n```\n\nВыполнить?");
+      }
+      c.messages.push({ role: "assistant", content: "…" });
+      ev("done");
+    })();
+    return id;
+  }
   return { api, on: (ev, fn) => ((listeners[ev] ??= []).push(fn), () => {}) };
 }

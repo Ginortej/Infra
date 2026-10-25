@@ -212,7 +212,9 @@ export function openHub(section = "mcp") {
   side.aiset?.show(section);
   app.showPanel("aiset");
 }
-const FILTERS = [["all", "Все"], ["tools", "Для агентов"], ["code", "Код"], ["thinking", "Рассуждения"], ["vision", "Зрение"], ["small", "Лёгкие"], ["have", "Установленные"]];
+const FILTERS = [["all", "Все"], ["tools", "Для агентов"], ["code", "Код"], ["thinking", "Рассуждения"], ["vision", "Зрение"], ["embed", "Эмбеддинги"], ["small", "Лёгкие"], ["have", "Установленные"]];
+const HF_SORT = [["trending", "в тренде"], ["downloads", "популярные"], ["likes", "по лайкам"], ["modified", "новые"]];
+const fmtNum = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + " млн" : n >= 1e3 ? Math.round(n / 1e3) + " тыс" : String(n || 0));
 
 export function marketTab(section = "models") {
   const tab = { type: "market", key: "market", title: "Маркет ИИ", icon: I.sparkle };
@@ -220,6 +222,8 @@ export function marketTab(section = "models") {
   tab.el = el;
   let sec = section, filter = store.get("mk.filter", "all"), q = "";
   const pick = {}; // выбранный размер по модели
+  let src = store.get("mk.src", "ollama"); // ollama | hf
+  const hf = { q: "", sort: "trending", list: null, loading: false, err: "", open: {}, files: {} };
 
   tab.onShow = () => loadAI().then(() => render());
   tab.refresh = (light) => (light ? renderBody() : render());
@@ -235,7 +239,10 @@ export function marketTab(section = "models") {
         <span class="mk-ollama ${st.running ? "ok" : "bad"}">${st.running ? `Ollama ${esc(st.version)}` : st.installed ? `Ollama не запущена <button class="link" data-ostart>запустить</button>` : `Ollama не установлена <button class="link" data-oinst>установить</button>`}</span></div>
       <div class="mk-bar">
         <div class="seg"><button data-sec="models" class="${sec === "models" ? "on" : ""}">Модели</button><button data-sec="agents" class="${sec === "agents" ? "on" : ""}">Агенты</button></div>
-        ${sec === "models" ? `<div class="chips">${FILTERS.map(([k, t]) => `<button class="fchip${filter === k ? " on" : ""}" data-filter="${k}">${t}</button>`).join("")}</div>
+        ${sec === "models" ? `<div class="seg src"><button data-src="ollama" class="${src === "ollama" ? "on" : ""}" title="Проверенная подборка из ollama.com/library">Ollama</button><button data-src="hf" class="${src === "hf" ? "on" : ""}" title="Тысячи GGUF-моделей с huggingface.co">Hugging Face</button></div>` : ""}
+        ${sec === "models" && src === "hf" ? `<div class="mk-search hf">${I.search}<input data-hfq placeholder="Поиск GGUF на Hugging Face (Enter)…" value="${esc(hf.q)}" spellcheck="false"></div>
+          <div class="chips">${HF_SORT.map(([k, t]) => `<button class="fchip${hf.sort === k ? " on" : ""}" data-hfsort="${k}">${t}</button>`).join("")}</div>` : ""}
+        ${sec === "models" && src === "ollama" ? `<div class="chips">${FILTERS.map(([k, t]) => `<button class="fchip${filter === k ? " on" : ""}" data-filter="${k}">${t}</button>`).join("")}</div>
         <div class="mk-search">${I.search}<input placeholder="Поиск…" value="${esc(q)}" spellcheck="false"></div>` : ""}
       </div>`;
     const inp = $(".mk-search input", el);
@@ -247,7 +254,7 @@ export function marketTab(section = "models") {
   function renderBody() {
     const body = $(".mk-body", el);
     const keep = body.scrollTop;
-    body.innerHTML = sec === "models" ? modelsHtml() : agentsHtml();
+    body.innerHTML = sec !== "models" ? agentsHtml() : src === "hf" ? hfHtml() : modelsHtml();
     body.scrollTop = keep;
   }
 
@@ -287,6 +294,50 @@ export function marketTab(section = "models") {
       ${extra.map((n) => `<div class="mk-extra"><b class="mono">${esc(n)}</b>${pullBar(n)}</div>`).join("")}`;
   }
 
+  // ---------- Hugging Face ----------
+  async function hfSearch() {
+    hf.loading = true; hf.err = ""; renderBody();
+    try { hf.list = await api.HFSearch(hf.q, hf.sort); } catch (e) { hf.err = errText(e); hf.list = []; }
+    hf.loading = false; renderBody();
+  }
+  async function hfLoadFiles(id) {
+    hf.files[id] = "loading"; renderBody();
+    try { hf.files[id] = await api.HFFiles(id); } catch (e) { hf.files[id] = { err: errText(e) }; }
+    renderBody();
+  }
+  function hfHtml() {
+    if (!hf.list && !hf.loading) { setTimeout(hfSearch); return `<div class="dim">Загрузка…</div>`; }
+    const intro = `<div class="hf-intro dim small">${I.info}<span>GGUF-модели с Hugging Face скачиваются через Ollama как <span class="mono">hf.co/автор/модель:квант</span>. Выбирай <b>Q4_K_M</b> — лучший баланс размера и качества. Инструменты (для агентов) поддерживают не все модели — ищи в названии instruct / tools.</span></div>`;
+    if (hf.loading) return intro + `<div class="dim row-load"><span class="spin"></span>Ищу на Hugging Face…</div>`;
+    if (hf.err) return intro + `<div class="notice err">${I.warn}<span>${esc(hf.err)}</span></div>`;
+    if (!hf.list.length) return intro + `<div class="dim">Ничего не найдено</div>`;
+    return intro + `<div class="hf-list">${hf.list.map((m) => {
+      const [author, name] = m.id.split("/");
+      const fl = hf.files[m.id];
+      return `<div class="hf-item${hf.open[m.id] ? " open" : ""}">
+        <div class="hf-h" data-hfopen="${esc(m.id)}">
+          <div class="hf-n"><b>${esc(name)}</b><span class="dim small">${esc(author)}</span></div>
+          <span class="hf-stat" title="Скачиваний">${I.download}${fmtNum(m.downloads)}</span><span class="hf-stat" title="Лайков">♥ ${fmtNum(m.likes)}</span>
+          ${I.chev}
+        </div>
+        ${m.tags?.length || m.pipeline ? `<div class="mk-caps">${m.pipeline ? `<span class="cap">${esc(m.pipeline)}</span>` : ""}${(m.tags || []).filter((t) => t !== m.pipeline).slice(0, 4).map((t) => `<span class="cap">${esc(t)}</span>`).join("")}</div>` : ""}
+        ${hf.open[m.id] ? `<div class="hf-files">${fl === "loading" || !fl ? `<div class="dim small row-load"><span class="spin"></span>Смотрю варианты…</div>`
+          : fl.err ? `<div class="warn-t small">${esc(fl.err)}</div>`
+          : !fl.length ? `<div class="dim small">В репозитории нет GGUF-файлов</div>`
+          : fl.map((f) => {
+            const full = `hf.co/${m.id}:${f.quant}`;
+            const sz = f.size / 1073741824;
+            const ft = fit(sz);
+            return `<div class="hf-f"><span class="fitdot ${ft.k}" title="${esc(ft.t)}"></span><b class="mono">${esc(f.quant)}</b><span class="dim small">${gb(sz)} ГБ</span>
+              <span class="grow"></span>${f.split ? `<span class="dim small" title="Файл разбит на части — Ollama такие не скачивает">частями</span>`
+                : installed(full) ? `<span class="mk-have">${I.check}есть</span><button class="btn small" data-newagent="${esc(full)}">${I.plus}Агент</button>`
+                : A.pulls[full] ? pullBar(full) : `<button class="btn small${f.quant === "Q4_K_M" ? " primary" : ""}" data-pull="${esc(full)}">${I.download}Установить</button>`}</div>`;
+          }).join("")}
+          <div class="row-btns"><a class="link" data-hflink="${esc(m.id)}">открыть на huggingface.co</a></div></div>` : ""}
+      </div>`;
+    }).join("")}</div>`;
+  }
+
   function agentsHtml() {
     const tpl = A.catalog?.agents || [];
     const mine = A.agents;
@@ -313,6 +364,10 @@ export function marketTab(section = "models") {
     const t = (s) => e.target.closest(s);
     let x;
     if ((x = t("[data-sec]"))) { sec = x.dataset.sec; store.set("mk.sec", sec); return render(); }
+    if ((x = t("[data-src]"))) { src = x.dataset.src; store.set("mk.src", src); return render(); }
+    if ((x = t("[data-hfsort]"))) { hf.sort = x.dataset.hfsort; head(); return hfSearch(); }
+    if ((x = t("[data-hflink]"))) return win.openURL("https://huggingface.co/" + x.dataset.hflink);
+    if ((x = t("[data-hfopen]"))) { const id = x.dataset.hfopen; hf.open[id] = !hf.open[id]; if (hf.open[id] && !hf.files[id]) return hfLoadFiles(id); return renderBody(); }
     if ((x = t("[data-filter]"))) { filter = x.dataset.filter; store.set("mk.filter", filter); return render(); }
     if ((x = t("[data-size]"))) { const [id, tag] = x.dataset.size.split("|"); pick[id] = tag; return renderBody(); }
     if ((x = t("[data-pull]"))) return pull(x.dataset.pull);
@@ -329,7 +384,10 @@ export function marketTab(section = "models") {
     if (t("[data-ostart]")) { try { await api.AIStartServer(); await loadAI(); render(); } catch (err) { toast(esc(errText(err)), "err"); } return; }
     if (t("[data-oinst]")) return app.openAI();
   });
-  el.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("[data-custom]")) $("[data-pullcustom]", el).click(); });
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target.matches("[data-custom]")) $("[data-pullcustom]", el).click();
+    if (e.key === "Enter" && e.target.matches("[data-hfq]")) { hf.q = e.target.value; hfSearch(); }
+  });
   return tab;
 }
 

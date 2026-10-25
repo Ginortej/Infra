@@ -259,7 +259,7 @@ func (c *Chats) List() []SessionInfo {
 // Event — что показать в чате.
 type Event struct {
 	Session string `json:"session"`
-	Type    string `json:"type"` // delta, thinking, tool, result, notice, done, error
+	Type    string `json:"type"` // start, status, loaded, model, delta, thinking, tool, result, notice, done, error
 	Text    string `json:"text,omitempty"`
 	ID      string `json:"id,omitempty"` // id вызова инструмента
 	Tool    string `json:"tool,omitempty"`

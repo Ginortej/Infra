@@ -144,3 +144,52 @@ func (o *Ollama) Embed(ctx context.Context, model string, input []string) ([][]f
 	}
 	return v.Embeddings, nil
 }
+
+// Load загружает модель в память (пустой запрос к /api/generate) и ждёт готовности.
+func (o *Ollama) Load(ctx context.Context, model string) error {
+	body, _ := json.Marshal(map[string]any{"model": model, "prompt": "", "stream": false})
+	req, _ := http.NewRequestWithContext(ctx, "POST", Host()+"/api/generate", strings.NewReader(string(body)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := stream.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return apiError(resp)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return nil
+}
+
+// Loaded — модель в памяти (ollama ps) или nil.
+func (o *Ollama) Loaded(ctx context.Context, model string) *Running {
+	var ps struct {
+		Models []struct {
+			Name      string `json:"name"`
+			Size      int64  `json:"size"`
+			SizeVRAM  int64  `json:"size_vram"`
+			ExpiresAt string `json:"expires_at"`
+		} `json:"models"`
+	}
+	if err := get(ctx, "/api/ps", &ps); err != nil {
+		return nil
+	}
+	for _, m := range ps.Models {
+		if SameModel(m.Name, model) {
+			return &Running{Name: m.Name, Size: m.Size, SizeVRAM: m.SizeVRAM, Until: m.ExpiresAt}
+		}
+	}
+	return nil
+}
+
+// SameModel — «qwen3» и «qwen3:latest» — одна модель.
+func SameModel(a, b string) bool {
+	norm := func(s string) string {
+		if !strings.Contains(s, ":") {
+			return s + ":latest"
+		}
+		return s
+	}
+	return norm(a) == norm(b)
+}

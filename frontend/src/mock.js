@@ -224,6 +224,15 @@ export function createMock() {
     },
     TermOpenLocalWith: (...a) => api.TermOpenLocal(a[0], a[1]),
     // ---------- агенты, маркет, MCP, база знаний ----------
+    HFSearch: (q) => new Promise((r) => setTimeout(() => r([
+      { id: "unsloth/Qwen3-8B-GGUF", author: "unsloth", downloads: 1840000, likes: 312, pipeline: "text-generation", tags: ["qwen3", "unsloth", "conversational"] },
+      { id: "bartowski/Qwen_Qwen3-14B-GGUF", author: "bartowski", downloads: 412000, likes: 98, pipeline: "text-generation", tags: ["imatrix"] },
+      { id: "Qwen/Qwen3-VL-8B-Instruct-GGUF", author: "Qwen", downloads: 1083024, likes: 140, pipeline: "image-text-to-text", tags: ["conversational"] },
+      { id: "lmstudio-community/gemma-3-12b-it-GGUF", author: "lmstudio-community", downloads: 290000, likes: 77, pipeline: "image-text-to-text", tags: ["gemma3"] },
+      { id: "Vikhrmodels/Vikhr-Nemo-12B-Instruct-R-21-09-24-GGUF", author: "Vikhrmodels", downloads: 21000, likes: 64, pipeline: "text-generation", tags: ["ru", "instruct"] },
+    ].filter((m) => !q || m.id.toLowerCase().includes(q.toLowerCase().split(" ")[0]))), 500)),
+    HFFiles: () => new Promise((r) => setTimeout(() => r([{ quant: "Q3_K_M", size: 4.1e9 }, { quant: "Q4_K_M", size: 5.03e9 }, { quant: "UD-Q4_K_XL", size: 5.1e9 }, { quant: "Q8_0", size: 8.7e9 }, { quant: "BF16", size: 16.4e9, split: true }]), 400)),
+    AILoad: (m) => { emit("ai:model", m, "loading"); setTimeout(() => { if (!aiLoaded.includes(m)) aiLoaded.push(m); emit("ai:model", m, "loaded"); }, 2500); },
     AICatalog: () => ({ models: mockModels, agents: mockTemplates, tools: mockTools }),
     AIPull: (m) => { let c = 0; const total = 4.7e9; const iv = setInterval(() => { c += total / 12; if (c >= total) { clearInterval(iv); aiModels.push({ name: m.includes(":") ? m : m + ":latest", size: total, params: "?", quant: "Q4_K_M" }); emit("ai:pull", { model: m, done: true, status: "готово" }); } else emit("ai:pull", { model: m, status: "pulling", completed: c, total }); }, 250); },
     AIPullCancel: () => {}, AIPulling: () => [],
@@ -293,6 +302,12 @@ export function createMock() {
     const say = async (s) => { for (const w of s.match(/\S+\s*/g)) { if (chatStop[id]) return; ev("delta", { text: w }); await wait(25); } };
     (async () => {
       ev("start"); await wait(200);
+      const model = agents.find((x) => x.id === agentId)?.model;
+      if (!aiLoaded.includes(model)) {
+        ev("status", { id: "model", text: `Загружаю ${model} в память (4.9 ГБ)…` }); await wait(2600);
+        aiLoaded.push(model);
+        ev("loaded", { id: "model", text: `${model} загружена за 2.6 с · 5.6 ГБ в видеопамяти` }); ev("model", { ok: true });
+      }
       for (const w of "Нужно посмотреть место на дисках на серверах. Начну со списка.".split(" ")) { ev("thinking", { text: w + " " }); await wait(20); }
       const a1 = { id: "call_1", name: "list_servers", args: {} };
       ev("tool", { id: a1.id, tool: a1.name, args: "{}" }); await wait(300);

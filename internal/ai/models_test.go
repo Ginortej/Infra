@@ -46,3 +46,20 @@ func TestPullEmbedDelete(t *testing.T) {
 		t.Fatal("catalog")
 	}
 }
+
+func TestQuantOf(t *testing.T) {
+	for in, want := range map[string]string{
+		"Qwen3-8B-Q4_K_M.gguf":                   "Q4_K_M",
+		"Qwen3-8B-UD-Q4_K_XL.gguf":               "UD-Q4_K_XL",
+		"Qwen_Qwen3-8B-IQ4_XS.gguf":              "IQ4_XS",
+		"model-f16.gguf":                         "F16",
+		"Llama-3.3-70B-Q8_0-00001-of-00002.gguf": "Q8_0",
+		"mistral-7b-instruct-v0.2.Q5_K_S.gguf":   "Q5_K_S",
+		"gemma-3-4b-it-BF16.gguf":                "BF16",
+		"readme.gguf":                            "",
+	} {
+		if got := quantOf(in); got != want {
+			t.Errorf("%s: %q want %q", in, got, want)
+		}
+	}
+}

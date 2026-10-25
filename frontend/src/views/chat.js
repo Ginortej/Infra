@@ -17,6 +17,7 @@ export function initChat() {
     <div class="chat-h">
       <button class="ag-chip" data-agpick></button>
       <span class="grow"></span>
+      <span class="mstate"></span>
       <button class="icon-btn" data-hist title="История чатов">${I.clock}</button>
       <button class="icon-btn" data-new title="Новый чат">${I.plus}</button>
       <button class="icon-btn" data-close title="Скрыть (Ctrl+J)">${I.x}</button>
@@ -52,6 +53,11 @@ export function initChat() {
   };
 
   on("agent:event", onEvent);
+  on("ai:model", (model, state) => {
+    if (state === "loading") MS[model] = "loading"; else delete MS[model];
+    if (state === "loading") renderModelState(); else refreshModelState();
+  });
+  setInterval(() => { if (C.open && document.visibilityState === "visible" && !C.busy) refreshModelState(); }, 15000);
   on("agent:approve", onApprove);
   on("agent:approved", (id, d) => {
     const card = document.querySelector(`.ap[data-ap="${id}"]`);
@@ -100,10 +106,37 @@ function renderHead() {
   $("[data-agpick]", el).innerHTML = a
     ? `${agentIcon(a, "sm")}<span class="ag-n"><b>${esc(a.name)}</b><small>${esc(a.model || "модель не выбрана")}</small></span>${I.chev}`
     : `${I.sparkle}<span class="ag-n"><b>Выбери агента</b></span>${I.chev}`;
+  renderModelState();
   const btn = $("[data-send]", el);
   btn.innerHTML = C.busy ? I.stop : I.send;
   btn.title = C.busy ? "Остановить (Esc)" : "Отправить";
   btn.classList.toggle("stop", C.busy);
+}
+
+// ---------- модель в памяти ----------
+const MS = {}; // модель -> "loading"
+const gbs = (b) => (b / 1073741824).toFixed(1);
+function sameModel(a, b) { const n = (s) => (s.includes(":") ? s : s + ":latest"); return n(a) === n(b); }
+
+function renderModelState() {
+  const a = agent();
+  const box = $(".mstate", el);
+  if (!a || !a.model || a.provider === "openai") { box.innerHTML = ""; return; }
+  const r = A.status?.loaded?.find((m) => sameModel(m.name, a.model));
+  if (MS[a.model] === "loading") {
+    box.innerHTML = `<span class="ms loading" title="Модель загружается в память"><span class="spin"></span>загрузка…</span>`;
+  } else if (r) {
+    const where = r.sizeVram >= r.size ? "GPU" : r.sizeVram > 0 ? `GPU ${Math.round((r.sizeVram / r.size) * 100)}%` : "CPU";
+    box.innerHTML = `<span class="ms on" title="Модель в памяти: ${gbs(r.size)} ГБ, ${where}. Выгрузится сама через 5 минут без сообщений"><i></i>${gbs(r.size)} ГБ · ${where}</span>
+      <button class="icon-btn" data-unload title="Выгрузить модель из памяти">${I.eject}</button>`;
+  } else if (installed(a.model)) {
+    box.innerHTML = `<button class="ms off" data-preload title="Модель не загружена — загрузится при первом сообщении. Нажми, чтобы загрузить сейчас">${I.play}загрузить</button>`;
+  } else box.innerHTML = "";
+}
+
+async function refreshModelState() {
+  try { A.status = await api.AIStatus(); } catch {}
+  renderModelState();
 }
 
 // что сейчас открыто — подсказка агенту
@@ -312,6 +345,21 @@ function toolResult(id, ok, text) {
   scrollDown();
 }
 
+// строка «Запускаю Ollama… / Загружаю модель…» — потом становится «загружена за N с»
+const loads = {};
+function loadLine(id, text, done) {
+  let p = loads[C.sid + id];
+  if (!p || !p.isConnected) { p = loads[C.sid + id] = part("chat-note load"); }
+  p.classList.toggle("done", done);
+  p.innerHTML = `${done ? I.check : `<span class="spin"></span>`}<span>${esc(text)}</span>${done ? "" : `<span class="load-t" data-t0="${Date.now()}"></span>`}`;
+  if (!done) {
+    clearInterval(p._t);
+    const t = $(".load-t", p);
+    p._t = setInterval(() => { if (!t.isConnected) return clearInterval(p._t); t.textContent = ((Date.now() - +t.dataset.t0) / 1000).toFixed(0) + " с"; }, 500);
+  } else clearInterval(p._t);
+  scrollDown();
+}
+
 function notice(text, cls = "") { part(`chat-note ${cls}`, `${I.info}<span>${esc(text)}</span>`); scrollDown(); }
 function errorLine(text) {
   const p = part("chat-note err", `${I.warn}<span>${esc(text)}</span>${/модель не скачана|not found/.test(text) ? ` <button class="link" data-getmodel>скачать</button>` : ""}${/Ollama не установлена/.test(text) ? ` <button class="link" data-oinst>установить</button>` : ""}`);
@@ -340,6 +388,9 @@ function onEvent(ev) {
     case "tool": toolCard(ev.id, ev.tool, ev.args); break;
     case "result": toolResult(ev.id, ev.ok, ev.text || ""); break;
     case "notice": notice(ev.text); break;
+    case "status": loadLine(ev.id, ev.text, false); break;
+    case "loaded": loadLine(ev.id, ev.text, true); break;
+    case "model": refreshModelState(); break;
     case "error": errorLine(ev.text); finishTurn(); setBusy(false); break;
     case "done": if (ev.text) notice(ev.text); finishTurn(); setBusy(false); refreshStatusLater(); break;
   }
@@ -482,6 +533,8 @@ async function onClick(e) {
   if ((x = t("[data-dec]"))) return decide(x.closest(".ap"), x.dataset.dec);
   if (t("[data-send]")) return send();
   if (t("[data-close]")) return toggleChat(false);
+  if (t("[data-unload]")) { const m = agent()?.model; if (m) { await api.AIUnload(m).catch(() => {}); toast(`${I.eject} ${esc(m)} выгружена из памяти`); refreshModelState(); } return; }
+  if (t("[data-preload]")) { const m = agent()?.model; if (m) { MS[m] = "loading"; renderModelState(); api.AILoad(m); } return; }
   if (t("[data-new]")) return newChat();
   if ((x = t("[data-hist]"))) return historyMenu(x);
   if ((x = t("[data-agpick]"))) return agentMenu(x);

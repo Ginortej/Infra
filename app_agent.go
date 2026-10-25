@@ -404,11 +404,12 @@ func (a *App) ChatSend(sessionID, agentID, text, hint string) (string, error) {
 		emit(agent.Event{Type: "start"})
 		p := a.provider(ag.Provider)
 		if p.Kind == "ollama" {
-			sctx, c2 := context.WithTimeout(ctx, 15*time.Second)
-			err := a.ollama.EnsureServer(sctx)
-			c2()
-			if err != nil {
-				emit(agent.Event{Type: "error", Text: err.Error()})
+			if err := a.prepareModel(ctx, ag.Model, emit); err != nil {
+				if ctx.Err() != nil {
+					emit(agent.Event{Type: "done", Text: "остановлено"})
+				} else {
+					emit(agent.Event{Type: "error", Text: err.Error()})
+				}
 				return
 			}
 		} else if p.Endpoint == "" {
@@ -436,6 +437,83 @@ func (a *App) ChatSend(sessionID, agentID, text, hint string) (string, error) {
 		}
 	}()
 	return s.ID, nil
+}
+
+// prepareModel запускает Ollama и загружает модель в память, сообщая в чат о каждом шаге.
+func (a *App) prepareModel(ctx context.Context, model string, emit func(agent.Event)) error {
+	sctx, c := context.WithTimeout(ctx, 4*time.Second)
+	st := a.ollama.Status(sctx)
+	c()
+	if !st.Running {
+		emit(agent.Event{Type: "status", ID: "server", Text: "Запускаю Ollama…"})
+		t0 := time.Now()
+		sctx, c := context.WithTimeout(ctx, 20*time.Second)
+		err := a.ollama.EnsureServer(sctx)
+		c()
+		if err != nil {
+			return err
+		}
+		emit(agent.Event{Type: "loaded", ID: "server", Text: fmt.Sprintf("Ollama запущена за %.1f с", time.Since(t0).Seconds())})
+		sctx, c = context.WithTimeout(ctx, 4*time.Second)
+		st = a.ollama.Status(sctx)
+		c()
+	}
+	var size int64
+	found := false
+	for _, m := range st.Models {
+		if ai.SameModel(m.Name, model) {
+			found, size = true, m.Size
+		}
+	}
+	if !found {
+		return fmt.Errorf("модель не скачана: %s — установи её в маркете", model)
+	}
+	lctx, lc := context.WithTimeout(ctx, 4*time.Second)
+	r := a.ollama.Loaded(lctx, model)
+	lc()
+	if r != nil {
+		emit(agent.Event{Type: "model", Text: modelPlace(r), OK: true})
+		return nil
+	}
+	emit(agent.Event{Type: "status", ID: "model", Text: fmt.Sprintf("Загружаю %s в память (%.1f ГБ)…", model, float64(size)/(1<<30))})
+	a.emit("ai:model", model, "loading")
+	t0 := time.Now()
+	lctx, lc = context.WithTimeout(ctx, 5*time.Minute)
+	err := a.ollama.Load(lctx, model)
+	lc()
+	if err != nil {
+		a.emit("ai:model", model, "")
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return fmt.Errorf("не удалось загрузить модель: %v", err)
+	}
+	lctx, lc = context.WithTimeout(ctx, 4*time.Second)
+	r = a.ollama.Loaded(lctx, model)
+	lc()
+	txt := fmt.Sprintf("%s загружена за %.1f с", model, time.Since(t0).Seconds())
+	if r != nil {
+		txt += " · " + modelPlace(r)
+	}
+	emit(agent.Event{Type: "loaded", ID: "model", Text: txt})
+	emit(agent.Event{Type: "model", Text: modelPlace(r), OK: r != nil})
+	a.emit("ai:model", model, "loaded")
+	return nil
+}
+
+func modelPlace(r *ai.Running) string {
+	if r == nil {
+		return ""
+	}
+	gb := float64(r.Size) / (1 << 30)
+	switch {
+	case r.SizeVRAM >= r.Size:
+		return fmt.Sprintf("%.1f ГБ в видеопамяти", gb)
+	case r.SizeVRAM > 0:
+		return fmt.Sprintf("%.1f ГБ, на видеокарте %d%% — остальное в ОЗУ, медленнее", gb, r.SizeVRAM*100/r.Size)
+	default:
+		return fmt.Sprintf("%.1f ГБ в ОЗУ (на процессоре — медленно)", gb)
+	}
 }
 
 func (a *App) systemPrompt(ag agent.Agent, hint string, withTools bool) string {
@@ -1073,4 +1151,39 @@ func pidPath() string { return filepath.Join(filepath.Dir(mcp.ConnPath()), "app.
 func writePID() {
 	_ = os.MkdirAll(filepath.Dir(pidPath()), 0o755)
 	_ = os.WriteFile(pidPath(), []byte(strconv.Itoa(os.Getpid())), 0o644)
+}
+
+// ---------- Hugging Face ----------
+
+func (a *App) HFSearch(q, sort string) ([]ai.HFModel, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return ai.HFSearch(ctx, q, sort)
+}
+
+func (a *App) HFFiles(repo string) ([]ai.HFFile, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return ai.HFFiles(ctx, repo)
+}
+
+// AILoad — загрузить модель в память заранее (кнопка в чате). Состояние — события ai:model.
+func (a *App) AILoad(model string) error {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+		defer cancel()
+		a.emit("ai:model", model, "loading")
+		if err := a.ollama.EnsureServer(ctx); err != nil {
+			a.emit("ai:model", model, "")
+			a.emit("toast", err.Error())
+			return
+		}
+		if err := a.ollama.Load(ctx, model); err != nil {
+			a.emit("ai:model", model, "")
+			a.emit("toast", "не удалось загрузить "+model+": "+err.Error())
+			return
+		}
+		a.emit("ai:model", model, "loaded")
+	}()
+	return nil
 }

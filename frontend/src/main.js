@@ -452,7 +452,9 @@ async function refreshServers(manual) {
 
 function watchJob(id, done) { (S.jobs[id] ??= { pct: 0 }).onDone = done; }
 
+let sysEl = null; // виджет CPU/RAM/GPU живёт в строке состояния рядом с папкой хранилища
 function renderStatus() {
+  sysEl ??= $("#sysWidget");
   const on = S.snap.vpns.filter((v) => vpnRunning(v.id));
   const jobs = Object.entries(S.jobs).filter(([, j]) => !j.done);
   const t = S.tabs.find((t) => t.id === S.active);
@@ -467,6 +469,7 @@ function renderStatus() {
     ${t?.type === "term" ? `<span class="sb mono">${t.spec.kind === "ssh" ? "ssh" : "local"} · ${t.xt.term.cols}×${t.xt.term.rows}</span>` : ""}
     ${t?.type === "editor" ? `<span class="sb mono">UTF-8 · ${esc(t.path.split(".").pop().toUpperCase())}</span>` : ""}
     <button class="sb" data-vault2>${I.vault}${esc(S.snap.name || "")}</button>`;
+  $("#statusbar").insertBefore(sysEl, $("#statusbar [data-vault2]"));
 }
 $("#statusbar").addEventListener("click", (e) => {
   const ga = e.target.closest("[data-gitacc]");

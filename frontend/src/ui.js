@@ -166,7 +166,7 @@ export function popover(anchor, content, { align = "right", width = 360 } = {}) 
   let left = align === "right" ? r.right - mw : r.left;
   left = Math.max(8, Math.min(left, innerWidth - mw - 8));
   let top = r.bottom + 6;
-  if (top + mh > innerHeight - 8) top = Math.max(8, innerHeight - mh - 8);
+  if (top + mh > innerHeight - 8) top = r.top - mh - 6 >= 8 ? r.top - mh - 6 : Math.max(8, innerHeight - mh - 8);
   m.style.left = left + "px";
   m.style.top = top + "px";
   setTimeout(() => document.addEventListener("mousedown", outside));
